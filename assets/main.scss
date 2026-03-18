@@ -1,0 +1,25 @@
+---
+---
+
+@import "minima";
+
+.wrapper,.page-content{
+  max-width:1200px;
+  margin:auto;
+}
+
+.post-content{
+  max-width:none;
+}
+
+table {
+  width: 100%;
+  table-layout: auto;
+  display: block;
+  overflow-x: auto;
+}
+
+table th,
+table td {
+  white-space: nowrap;
+}
