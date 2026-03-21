@@ -1,148 +1,583 @@
-# Lecture 2: Python程序的解析和运行
+下面是一版可直接使用的双语 Markdown note，我在你现有版本基础上补充了“词法分析—句法分析—编译—虚拟机执行”这条主线，并加了一些更适合复习的细节。
 
-## 1. 编程语言与程序设计
+# Lecture 2: Python程序的解析和运行 / Parsing and Execution of Python Programs
 
-### 1.1 编程语言的概念
+## 0. 本章学习目标 / Learning Objectives
 
-- **编程语言**是用于与计算机沟通、表达计算逻辑的工具
-- 分为**低级语言**（机器语言、汇编语言）和**高级语言**（Python、Java、C++等）
+* 理解 Python 程序从**源代码**到**运行结果**的大致流程。
+  Understand the overall pipeline from **source code** to **runtime result**.
 
-### 1.2 编译型语言 vs 解释型语言
+* 理解 **AST（抽象语法树）**、**字节码（bytecode）** 与 **Python 虚拟机（PVM）** 的基本作用。
+  Understand the roles of the **AST (Abstract Syntax Tree)**, **bytecode**, and the **Python Virtual Machine (PVM)**.
 
-| 特性 | 编译型语言 | 解释型语言 |
-|------|-----------|-----------|
-| 执行方式 | 一次性编译为机器码 | 逐行解释执行 |
-| 典型代表 | C、C++、Go | Python、JavaScript、Ruby |
-| 优点 | 执行速度快 | 跨平台、调试方便 |
-| 缺点 | 平台依赖、编译时间长 | 执行速度相对较慢 |
+* 能够借助工具查看 Python 代码在不同阶段的表示形式。
+  Be able to inspect Python code at different stages using built-in tools. 
 
-### 1.3 Python的执行方式
+---
+
+## 1. 编程语言与程序设计 / Programming Languages and Program Design
+
+### 1.1 编程语言的概念 / What is a Programming Language?
+
+* **编程语言**是人类描述计算过程、数据和控制逻辑的形式化工具。
+  A **programming language** is a formal tool for describing computation, data, and control flow.
+
+* 从抽象层次看，编程语言大致可分为：
+  From the perspective of abstraction, programming languages can be roughly divided into:
+
+  * **低级语言（Low-level languages）**：如机器语言、汇编语言，更接近硬件。
+    **Low-level languages** such as machine code and assembly are closer to hardware.
+  * **高级语言（High-level languages）**：如 Python、Java、C++，更接近人的思维方式。
+    **High-level languages** such as Python, Java, and C++ are closer to human reasoning.
+
+### 1.2 编译型语言 vs 解释型语言 / Compiled vs Interpreted Languages
+
+| 维度 / Aspect        | 编译型 / Compiled                      | 解释型 / Interpreted                             |
+| ------------------ | ----------------------------------- | --------------------------------------------- |
+| 执行方式 / Execution   | 先整体编译，再运行 / Compile first, then run | 通常由解释器执行 / Usually executed by an interpreter |
+| 典型代表 / Examples    | C, C++, Rust                        | Python, JavaScript, Ruby                      |
+| 优点 / Advantages    | 运行速度快 / Fast execution              | 调试方便、跨平台性强 / Easy debugging, good portability |
+| 缺点 / Disadvantages | 编译流程较重 / Heavier build process      | 运行时开销相对更高 / Higher runtime overhead           |
+
+* **更准确的说法**：Python 常被称为“解释型语言”，但在 CPython 中，源码并不是直接按字符逐行执行，而是通常先经历**解析**与**编译为字节码**，再由虚拟机执行。
+  **A more accurate statement**: Python is often called an “interpreted language,” but in CPython, source code is usually first **parsed** and **compiled into bytecode**, and then executed by the virtual machine.
+
+---
+
+## 2. Python语言与AI生态 / Python and the AI Ecosystem
+
+* Python 语法简洁、可读性强，非常适合教学、快速原型开发和科研实验。
+  Python has simple, readable syntax, making it ideal for teaching, rapid prototyping, and research.
+
+* 在人工智能和数据科学中，Python 之所以重要，很大程度上是因为它拥有丰富生态：如 NumPy、Pandas、Matplotlib、Scikit-learn、PyTorch 等。
+  Python is central to AI and data science largely because of its rich ecosystem: NumPy, Pandas, Matplotlib, Scikit-learn, PyTorch, and more. 
+
+---
+
+## 3. Python程序的总体执行流程 / Overall Execution Pipeline of a Python Program
+
+Python 程序的运行过程可以概括为三步：
+The execution of a Python program can be summarized in three stages:
+
+```text
+源代码 Source Code
+    ↓
+解析 Parsing
+    ↓
+AST (Abstract Syntax Tree)
+    ↓
+编译 Compilation
+    ↓
+字节码 Bytecode
+    ↓
+Python 虚拟机执行 Execution by PVM
+    ↓
+运行结果 Runtime Result
+```
+
+* **解析（Parsing）**：把源代码转换成 AST。
+  **Parsing** transforms source code into an AST.
+* **编译（Compilation）**：把 AST 转换成字节码。
+  **Compilation** turns the AST into bytecode.
+* **执行（Execution）**：Python 虚拟机逐条执行字节码。
+  **Execution** means the Python virtual machine executes the bytecode instruction by instruction. 
+
+### 3.1 常用观察命令 / Useful Inspection Commands
+
+```bash
+# 查看 AST / Inspect the AST
+python -m ast toy.py
+
+# 查看 token 序列 / Inspect the token stream
+python -m tokenize toy.py
+
+# 查看字节码 / Inspect the bytecode
+python -m dis toy.py
+
+# 编译为 .pyc / Compile into .pyc files
+python -m compileall toy.py
+```
+
+这些命令帮助我们从“源码视角”切换到“解释器视角”。
+These commands help us move from the “source-level view” to the “interpreter-level view.” 
+
+---
+
+## 4. 语法解析 / Parsing
+
+语法解析通常分成两步：
+Parsing is usually divided into two steps:
+
+1. **词法分析（Lexical Analysis）**
+2. **句法分析（Syntax Analysis）** 
+
+---
+
+## 5. 词法分析 / Lexical Analysis
+
+### 5.1 词法分析的目标 / Goal of Lexical Analysis
+
+* 词法分析把源代码的**字符流（character stream）**切分成一系列**词元（tokens）**。
+  Lexical analysis splits the source code’s **character stream** into a sequence of **tokens**.
+
+* 这些 token 带有语法意义，例如：关键字、标识符、数字、括号、逗号、缩进等。
+  These tokens carry syntactic meaning, such as keywords, identifiers, numbers, parentheses, commas, and indentation. 
+
+### 5.2 Python词法分析的特殊点：缩进 / Python’s Special Feature: Indentation
+
+Python 不是靠 `{}` 表示代码块，而是靠**缩进**表示代码块层次。
+Python does not use `{}` to mark blocks; it uses **indentation**.
+
+因此词法分析器除了生成普通 token，还要显式生成：
+
+* `INDENT`：代码块开始
+  `INDENT`: beginning of a block
+* `DEDENT`：代码块结束
+  `DEDENT`: end of a block 
+
+### 5.3 例子 / Example
+
+源代码：
+Source code:
 
 ```python
-# 交互式执行
-python -i  # 进入交互模式
+def relu(x):
+    return max(0.0, x)
 
-# 文件执行
-python helloworld.py
-python add.py
+print(relu(100))
 ```
 
-## 2. Python程序的执行过程
+对应的 token 序列可抽象写成：
+The token sequence can be abstractly written as:
 
-### 2.1 代码执行流程
-
+```text
+ENCODING(utf-8)
+NAME(def) NAME(relu) ( NAME(x) ) : NEWLINE
+INDENT
+NAME(return) NAME(max) ( NUMBER(0.0), NAME(x) ) NEWLINE
+NL
+DEDENT
+NAME(print) ( NAME(relu) ( NUMBER(100) ) ) NEWLINE
+ENDMARKER
 ```
-源代码 (.py) → 词法分析 → 语法分析 → 字节码编译 → 虚拟机执行
+
+这里要注意：
+A few details are worth noticing:
+
+* `def` 和 `return` 在该讲义的展示里，词法阶段仍显示成 `NAME(def)`、`NAME(return)`。
+  In the lecture’s presentation, `def` and `return` still appear as `NAME(def)` and `NAME(return)` at the lexical stage.
+* `NL` 与 `NEWLINE` 不完全相同：
+  `NL` and `NEWLINE` are not the same:
+
+  * `NEWLINE` 表示逻辑行结束。
+    `NEWLINE` marks the end of a logical line.
+  * `NL` 常用于空行或括号内部换行。
+    `NL` is often used for blank lines or line breaks inside parentheses. 
+
+### 5.4 正则表达式与词法模式 / Regular Expressions and Lexical Patterns
+
+词法分析通常用正则表达式描述 token 模式。
+Lexical patterns are usually described using regular expressions.
+
+例如：
+For example:
+
+```text
+NAME   → [A-Za-z_][A-Za-z_0-9]*
+NUMBER → [0-9]+(.[0-9]+)?
 ```
 
-1. **词法分析 (Lexical Analysis)**: 将源代码分解为Token（标识符、关键字、运算符等）
-2. **语法分析 (Syntax Analysis)**: 检查语法规则，生成抽象语法树(AST)
-3. **字节码编译 (Bytecode Compilation)**: 将AST编译为Python字节码(.pyc文件)
-4. **虚拟机执行 (PVM - Python Virtual Machine)**: 逐条执行字节码指令
+* `NAME` 表示标识符。
+  `NAME` represents an identifier.
+* `NUMBER` 表示整数或浮点数常量。
+  `NUMBER` represents an integer or floating-point literal. 
 
-### 2.2 Python解释器
+### 5.5 注释与字符串 / Comments and Strings
 
-- **CPython**: Python的官方解释器，使用C语言实现
-- 解释器本身也是程序，将Python代码转换为机器可执行的指令
+* Python 注释通常以 `#` 开始，到行末结束。
+  Python comments usually start with `#` and continue to the end of the line.
+* Python 没有专门的“多行注释”语法。
+  Python has no dedicated syntax for “multi-line comments.”
+* 三引号 `'''...'''` 或 `"""..."""` 在词法和语法层面本质上仍然是**字符串**，不是注释。
+  Triple-quoted text is still a **string** at the lexical and syntactic levels, not a comment. 
 
-### 2.3 示例：Python的动态特性
+---
+
+## 6. 句法分析与抽象语法树 / Syntax Analysis and the AST
+
+### 6.1 句法分析的目标 / Goal of Syntax Analysis
+
+句法分析在 token 序列的基础上判断程序是否**结构合法**，并构造出程序的层次化表示。
+Syntax analysis checks whether the token sequence is **structurally valid** and constructs a hierarchical representation of the program.
+
+* 它关注“结构是否符合语法规则”。
+  It focuses on whether the structure obeys grammar rules.
+* 它**不直接处理**变量是否已定义、类型是否匹配等语义问题。
+  It does **not directly handle** semantic issues such as undefined variables or type mismatches. 
+
+### 6.2 上下文无关文法 / Context-Free Grammar (CFG)
+
+许多编程语言的语法可以用**上下文无关文法（CFG）**描述。
+The syntax of many programming languages can be described using a **context-free grammar (CFG)**.
+
+一个 CFG 常写作：
+A CFG is often written as:
+
+```text
+G = (V, Σ, P, S)
+```
+
+其中：
+where:
+
+* `V`：非终结符集合 / set of nonterminals
+* `Σ`：终结符集合 / set of terminals
+* `P`：产生式集合 / set of productions
+* `S`：开始符号 / start symbol 
+
+### 6.3 讲义中的简化语法 / Simplified Grammar in the Lecture
+
+```text
+Module → StmtList
+StmtList → Stmt StmtList | ϵ
+Stmt → SimpleStmt | CompoundStmt
+CompoundStmt → FunctionDef
+FunctionDef → def Identifier ( ParamList ) : NEWLINE Block
+Block → INDENT StmtList DEDENT
+SimpleStmt → ReturnStmt NEWLINE | ExprStmt NEWLINE
+ReturnStmt → return Expr
+ExprStmt → Expr
+```
+
+这说明：
+This shows that:
+
+* 一个模块由若干语句组成；
+  a module consists of a sequence of statements;
+* 语句分为简单语句与复合语句；
+  statements can be simple or compound;
+* 函数定义是复合语句的一种；
+  function definition is a kind of compound statement;
+* 缩进块在语法层面非常重要。
+  indentation blocks are syntactically crucial. 
+
+### 6.4 AST的作用 / The Role of the AST
+
+AST（抽象语法树）会**丢弃不重要的表面语法细节**，只保留结构信息。
+The AST **discards unimportant surface syntax details** and keeps the structural information.
+
+例如括号、分号、部分换行等细节，通常不会以原样保留。
+For example, parentheses, semicolons, and some line-break details are usually not preserved literally.
+
+对于上面的 `relu` 例子，AST 的核心结构大致是：
+For the `relu` example above, the core AST structure is roughly:
+
+```text
+Module
+├── FunctionDef(relu)
+│   ├── arguments(x)
+│   └── Return
+│       └── Call(max, [0.0, x])
+└── Expr
+    └── Call(print, [Call(relu, [100])])
+```
+
+一句话理解：**AST 是“程序长什么样”的树状表示，不是“程序怎么执行”的全过程。**
+In one sentence: **the AST is a tree showing what the program looks like structurally, not the full story of how it executes.** 
+
+---
+
+## 7. 编译 / Compilation
+
+### 7.1 从AST到字节码 / From AST to Bytecode
+
+Python 在完成语法解析后，不会直接解释 AST，而是进入编译阶段。
+After parsing, Python does not execute the AST directly; it enters the compilation stage.
+
+抽象上可以写成：
+Abstractly, the process is:
+
+```text
+AST → Code Object → Bytecode
+```
+
+* **代码对象（Code Object）**是对一段可执行代码的封装。
+  A **code object** is a packaged representation of executable code.
+* 它除了包含字节码指令，还包含常量表、符号表、局部变量信息等元数据。
+  Besides bytecode instructions, it also contains metadata such as the constants table, names table, and local variables. 
+
+### 7.2 为什么会有多个代码对象 / Why There Can Be Multiple Code Objects
+
+以 `relu` 例子为例，编译阶段会产生两个代码对象：
+In the `relu` example, compilation produces two code objects:
+
+1. **模块级代码对象**：描述顶层语句。
+   The **module-level code object**, which describes top-level statements.
+2. **函数 `relu` 的代码对象**：描述函数体内部逻辑。
+   The **code object for `relu`**, which describes the function body. 
+
+---
+
+## 8. 字节码 / Bytecode
+
+### 8.1 字节码是什么 / What Is Bytecode?
+
+* 字节码是与具体硬件平台无关的中间表示。
+  Bytecode is a hardware-independent intermediate representation.
+* 它比源代码更接近执行，但仍然不是机器码。
+  It is closer to execution than source code, but it is still not machine code.
+* 它通常可以缓存为 `.pyc` 文件。
+  It can often be cached in `.pyc` files. 
+
+### 8.2 常见字节码指令 / Common Bytecode Instructions
+
+* `LOAD_CONST`：把常量加载到栈上。
+  `LOAD_CONST`: load a constant onto the stack.
+* `LOAD_NAME` / `LOAD_GLOBAL`：把名字对应的对象加载到栈上。
+  `LOAD_NAME` / `LOAD_GLOBAL`: load an object referenced by a name onto the stack.
+* `STORE_NAME`：把栈顶对象绑定到某个名字。
+  `STORE_NAME`: bind the top-of-stack object to a name.
+* `MAKE_FUNCTION`：创建函数对象。
+  `MAKE_FUNCTION`: create a function object.
+* `CALL_FUNCTION`：调用函数。
+  `CALL_FUNCTION`: call a function.
+* `LOAD_FAST`：加载局部变量。
+  `LOAD_FAST`: load a local variable.
+* `POP_TOP`：弹出并丢弃栈顶值。
+  `POP_TOP`: discard the top value on the stack.
+* `RETURN_VALUE`：返回栈顶值。
+  `RETURN_VALUE`: return the top value on the stack. 
+
+> 补充说明 / Extra note: 不同 Python 版本的具体 opcode 名字和细节可能有所变化，但“先编译为某种中间表示，再由虚拟机执行”的核心思想不变。
+> The exact opcodes may differ across Python versions, but the central idea remains the same: compile to an intermediate representation first, then execute it in a virtual machine.
+
+### 8.3 代码对象中的几张重要表 / Important Tables Inside a Code Object
+
+每个代码对象通常维护三类重要信息：
+Each code object typically maintains three important kinds of information:
+
+* **常量表（constants table）**：保存数值、字符串、内部代码对象等。
+  **Constants table**: stores numbers, strings, inner code objects, etc.
+* **符号表（names table）**：保存模块或函数使用到的名字。
+  **Names table**: stores names used by the module or function.
+* **局部变量表（local variables table）**：保存参数和局部变量。
+  **Local variables table**: stores parameters and local variables. 
+
+---
+
+## 9. Python虚拟机（PVM） / Python Virtual Machine (PVM)
+
+### 9.1 PVM是什么 / What Is the PVM?
+
+Python 字节码不是由操作系统直接执行，而是由 **Python 虚拟机（PVM）** 执行。
+Python bytecode is not executed directly by the operating system; it is executed by the **Python Virtual Machine (PVM)**.
+
+* PVM 提供统一执行环境。
+  The PVM provides a unified execution environment.
+* 它采用**栈式架构（stack-based architecture）**。
+  It uses a **stack-based architecture**.
+* 运行时会维护**操作数栈**、**调用栈**以及当前执行状态。
+  At runtime, it maintains an **operand stack**, a **call stack**, and the current execution state. 
+
+### 9.2 执行帧 / Execution Frames
+
+当 PVM 执行某个代码对象时，会创建一个**执行帧（frame）**。
+When the PVM executes a code object, it creates an **execution frame**.
+
+一个 frame 一般包括：
+A frame generally includes:
+
+* 对代码对象的引用 / a reference to the code object
+* 指令计数器 / a program counter
+* 操作数栈 / an operand stack
+* 局部运行时状态 / local runtime state 
+
+---
+
+## 10. 例子：`relu` 程序如何执行 / Example: How the `relu` Program Executes
+
+### 10.1 模块级代码对象执行过程 / Execution of the Module-Level Code Object
+
+对于：
 
 ```python
-# 动态类型：变量类型在运行时确定
-a = 10        # 整数
-a = "hello"   # 字符串，合法！
+def relu(x):
+    return max(0.0, x)
 
-# 动态执行：代码可以在运行时生成和执行
-code = "print('Hello from dynamic code')"
-exec(code)
-
-# 动态导入
-module = __import__('math')
-print(module.sqrt(4))  # 2.0
+print(relu(100))
 ```
 
-## 3. Python的面向对象模型
+模块级的大致逻辑是：
+At the module level, the rough logic is:
 
-### 3.1 一切皆对象
+1. 把 `relu` 的函数体代码对象压栈。
+   Push the code object of `relu` onto the stack.
+2. 把函数名 `"relu"` 压栈。
+   Push the function name `"relu"` onto the stack.
+3. `MAKE_FUNCTION` 创建函数对象。
+   `MAKE_FUNCTION` creates the function object.
+4. `STORE_NAME` 把它绑定到名字 `relu`。
+   `STORE_NAME` binds it to the name `relu`.
+5. 加载 `print`。
+   Load `print`.
+6. 加载 `relu`。
+   Load `relu`.
+7. 加载常量 `100`。
+   Load the constant `100`.
+8. 调用 `relu(100)`。
+   Call `relu(100)`.
+9. 再调用 `print(...)`。
+   Then call `print(...)`.
+10. 丢弃 `print` 的返回值 `None`。
+    Discard `print`’s return value `None`.
+11. 返回模块级 `None`。
+    Return module-level `None`. 
 
-在Python中，**所有数据都是对象**：
+### 10.2 `relu` 函数体的执行过程 / Execution of the Function Body
+
+函数内部的大致逻辑是：
+Inside the function, the rough logic is:
+
+1. 加载全局名字 `max`。
+   Load the global name `max`.
+2. 加载常量 `0.0`。
+   Load the constant `0.0`.
+3. 加载参数 `x`。
+   Load the argument `x`.
+4. 调用 `max(0.0, x)`。
+   Call `max(0.0, x)`.
+5. 返回结果。
+   Return the result. 
+
+---
+
+## 11. 补充理解：Python为什么显得“动态” / Extra Perspective: Why Python Feels “Dynamic”
+
+这一部分不完全是讲义主线，但和“程序如何运行”密切相关。
+This part is not the central line of the lecture, but it is closely related to runtime behavior.
+
+### 11.1 动态类型 / Dynamic Typing
+
+* Python 变量本身不固定携带某种静态类型标签；变量是在运行时绑定到对象上的。
+  Python variables are not permanently tied to a static type; they are bound to objects at runtime.
 
 ```python
-# 基本类型也是对象
-a = 10          # int对象
-b = 3.14        # float对象
-c = "hello"     # str对象
-d = [1, 2, 3]   # list对象
-e = {"a": 1}    # dict对象
+x = 5
+x = "five"
+```
 
-# 函数也是对象
+* 上面是合法的，因为 `x` 只是先后绑定到了不同对象。
+  This is valid because `x` is simply rebound to different objects.
+
+### 11.2 强类型 / Strong Typing
+
+* Python 也是**强类型语言**：不同类型之间的操作通常不能随意混用。
+  Python is also a **strongly typed language**: operations across different types are usually not mixed implicitly.
+
+```python
+# "5" + 5   # TypeError
+int("5") + 5
+```
+
+### 11.3 一切皆对象 / Everything Is an Object
+
+在 Python 中，函数、类、模块、整数、字符串通常都可以视为对象。
+In Python, functions, classes, modules, integers, and strings can all be treated as objects.
+
+```python
 def say_hello():
     print("Hello")
 
-print(type(say_hello))  # <class 'function'>
-print(say_hello.__name__)  # say_hello
+print(type(say_hello))
+print(say_hello.__name__)
 ```
 
-### 3.2 对象的组成
+这也是 Python 具有高度灵活性的原因之一。
+This is one reason Python is so flexible.
 
-每个Python对象包含：
-- **身份 (Identity)**: 对象的内存地址
-- **类型 (Type)**: 决定对象可以进行的操作
-- **值 (Value)**: 对象存储的数据
+---
 
-```python
-a = [1, 2, 3]
-print(id(a))    # 对象的内存地址
-print(type(a))  # <class 'list'>
-print(a)        # [1, 2, 3]
+## 12. 常见误区 / Common Misconceptions
+
+### 12.1 “Python 是解释型语言” ≠ “源码直接逐字符执行”
+
+“Python is interpreted” ≠ “the source code is executed directly character by character”
+
+更准确的流程是：
+A more accurate pipeline is:
+
+```text
+源代码 → 解析 → AST → 编译 → 字节码 → 虚拟机执行
+Source code → Parsing → AST → Compilation → Bytecode → Execution by VM
 ```
 
-### 3.3 动态类型系统
+### 12.2 AST 不是程序运行时的全部状态
 
-- Python使用**动态类型**：变量在运行时绑定到对象
-- **强类型**：不同类型之间的操作需要显式转换
+The AST is not the full runtime state of the program
 
-```python
-# 动态类型示例
-x = 5
-x = "five"  # 完全合法
+AST 只描述结构；运行时还涉及名字绑定、栈、frame、函数对象、返回值等。
+The AST only describes structure; runtime also involves name binding, stacks, frames, function objects, return values, and more.
 
-# 强类型示例
-# "5" + 5  # TypeError: can only concatenate str (not "int") to str
-int("5") + 5  # 10，需要显式转换
+### 12.3 三引号不等于“真正的多行注释”
+
+Triple quotes do not mean “true multi-line comments”
+
+三引号本质上还是字符串字面量。
+Triple quotes are still string literals in essence. 
+
+---
+
+## 13. 动手实验建议 / Suggested Hands-On Experiments
+
+### 13.1 观察 AST / Inspect the AST
+
+```bash
+python -m ast toy.py
 ```
 
-## 4. 代码实例分析
+### 13.2 观察 token / Inspect tokens
 
-### 4.1 helloworld.py
-
-```python
-print("Hello, World!")
+```bash
+python -m tokenize toy.py
 ```
 
-执行流程：
-1. 解释器读取源代码
-2. 创建字符串对象 `"Hello, World!"`
-3. 调用 `print` 函数输出
+### 13.3 观察字节码 / Inspect bytecode
 
-### 4.2 add.py
-
-```python
-a = int(input("Please enter the first number: "))
-b = int(input("Please enter the second number: "))
-print(a + b)
+```bash
+python -m dis toy.py
 ```
 
-执行流程：
-1. `input()` 读取用户输入，返回字符串
-2. `int()` 将字符串转换为整数对象
-3. `+` 操作符执行加法运算
-4. `print()` 输出结果
+### 13.4 编译为 `.pyc` / Compile to `.pyc`
 
-## 5. 本章小结
+```bash
+python -m compileall toy.py
+```
 
-1. **编程语言**是人与计算机沟通的桥梁
-2. **Python是解释型语言**，执行过程：源码 → 词法分析 → 语法分析 → 字节码 → 虚拟机
-3. **Python是动态强类型语言**：动态类型 + 强类型检查
-4. **一切皆对象**：Python中的所有数据都是对象，包括函数、类等
-5. Python的**动态特性**使得代码更灵活，但也需要开发者注意类型安全
+### 13.5 讲义练习建议 / Exercises from the Lecture
+
+* 写一个正则表达式，匹配 Python 的单引号、双引号、三引号字符串。
+  Write a regex to match Python single-quoted, double-quoted, and triple-quoted strings.
+* 对上节课的神经网络程序分析 token、AST、bytecode。
+  Analyze the tokens, AST, and bytecode of the neural-network program from the previous lecture.
+* 实现一个小工具，通过 `ast`、`dis`、`tokenize` 模块查看源码的不同表示。
+  Implement a small tool using `ast`, `dis`, and `tokenize` to inspect different representations of source code. 
+
+---
+
+## 14. 本章小结 / Chapter Summary
+
+1. Python 程序运行的主线是：**源代码 → AST → 字节码 → PVM执行**。
+   The main pipeline of Python execution is: **source code → AST → bytecode → execution by the PVM**.
+
+2. **词法分析**把字符流切分成 token；**句法分析**把 token 组织成 AST。
+   **Lexical analysis** splits the character stream into tokens; **syntax analysis** organizes tokens into an AST.
+
+3. Python 的词法分析具有鲜明特色：它需要处理 **INDENT / DEDENT**。
+   Python’s lexical analysis has a special feature: it must handle **INDENT / DEDENT**.
+
+4. 编译阶段会生成**代码对象**和**字节码**，代码对象中还包含常量表、符号表和局部变量表。
+   The compilation stage produces **code objects** and **bytecode**; code objects also contain constants tables, names tables, and local-variable tables.
+
+5. Python 虚拟机采用**栈式执行模型**，通过 frame、操作数栈和调用机制完成程序运行。
+   The Python virtual machine uses a **stack-based execution model**, relying on frames, operand stacks, and function calls. 
+
