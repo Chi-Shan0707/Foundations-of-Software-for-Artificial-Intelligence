@@ -1,9 +1,6 @@
-# Lambda 演算入门：通过 Python 语法分析理解计算的本质
-
-> 本报告通过 Python 的 `ast` 和 `dis` 模块，探索 Lambda 演算的核心概念，并展示如何通过装饰器将 Lambda 演算 lowering 到 Native 代码。
+# Lambda 演算入门：Python 语法分析的视角
 
 ---
-
 ## 1. 引言
 
 Lambda 演算（Lambda Calculus）是由数学家**阿隆佐·邱奇**（Alonzo Church）于 1930 年代提出的形式系统。它是最早的**通用计算模型**之一，与图灵机具有等价的计算能力。
@@ -16,7 +13,6 @@ Lambda 演算的极简语法：
            | λ<变量>. <表达式> -- 函数抽象
            | <表达式> <表达式> -- 函数应用
 ```
-
 ---
 
 ## 2. Lambda 演算的 Python 实现
@@ -78,7 +74,7 @@ Lambda(
 
 ```text
 --- TRUE = lambda t: lambda f: t ---
-  1  LOAD_CONST (<code object <lambda>>)  # 加载内层 lambda
+  1  LOAD_CONST (<code object <lambda>>)   # 加载内层 lambda
      MAKE_FUNCTION                         # 创建函数
      RETURN_VALUE
 
@@ -93,10 +89,15 @@ Lambda(
   1  LOAD_DEREF (t)                        # 从闭包中取 t
      RETURN_VALUE
 ```
+> **什么是闭包？**
+> 闭包（closure）就是"函数 + 它捕获的外部变量环境"。在 `TRUE = lambda t: lambda f: t` 里，内层 `lambda f: t` 虽然形参只有 `f`，但它记住了外层的 `t`，所以之后仍能返回这个 `t`。
+>
+> **DEREF 是什么？**
+> `DEREF`（如 `LOAD_DEREF`）是字节码里"从闭包单元读取变量"的操作。也就是说，这个变量不在当前局部作用域（`FAST`）里，而是在外层作用域被捕获后存进闭包里，需要通过 `DEREF` 取出。
 
-**关键观察**：
-- `TRUE` 和 `FALSE` 的 AST 结构完全相同，只是返回的变量不同
-- `LOAD_DEREF` 表示从闭包中捕获外部变量，这是 Lambda 演算的核心机制
+
+<!-- - `TRUE` 和 `FALSE` 的 AST 结构完全相同，只是返回的变量不同 -->
+<!-- dereference ，解引用 -->
 
 ### 2.3 IF 条件的 AST 分析
 
@@ -140,7 +141,7 @@ Lambda(args=[p], body=
 ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 ```
 
-让我们追踪 `ADD(ONE)(TWO)` 的完整执行流程：
+下面我们追踪 `ADD(ONE)(TWO)` 的完整执行流程：
 
 **第一步：ADD 本身的字节码**
 
@@ -213,13 +214,13 @@ ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 2. **变量捕获**：使用 `LOAD_DEREF` 从闭包中取值，比直接访问局部变量慢
 3. **多次函数调用**：`m(f)(n(f)(x))` 需要 5 次 `CALL` 指令
 
-尽管如此，这种**所有函数都是单参数**的统一性使得 Lambda 演算具有极简的理论美感。
+不过，这种**所有函数都是单参数**的统一性，正是 Lambda 演算极简而优雅的来源。
 
 ---
 
 ## 3. Lambda 演算的性能思考
 
-啊好的，既然我们已经了解了其基本运作方式了，我们思考一下，它好不好用呢？
+既然已经了解了它的基本运作方式，接下来就看一个更实际的问题：它在工程里到底好不好用？
 
 从理论上看，Lambda 演算非常优雅——用纯函数表示一切。但实际运行起来，这种"函数套函数"的方式效率如何？我们来做个简单的实验：用 Fibonacci 数列来对比普通递归和 Lambda 递归（Church 数）的性能差异。
 
@@ -251,9 +252,9 @@ def fib_lambda(n):
 
 结论：在 Python 中，Lambda 递归比普通递归慢 **10-20 倍**，且差距随 n 增大而扩大。
 
-### 3.2 跨语言对比：C++ 的表现
+### 3.2 C++ 的表现
 
-那么，如果是编译型语言如 C++，情况会有所不同吗？我们用类似的方式实现 C++ 版本：
+如果换成编译型语言 C++，情况会不会不一样？下面来看结果：
 
 ```cpp
 // C++ 普通递归
@@ -298,108 +299,29 @@ C++ 运行结果：
 
 ### 3.4 为什么 C++ 中这种差异更加明显？
 
-这背后有几个原因：
+背后主要有四个原因：
 
 1. **编译器优化的极限**：C++ 的普通递归可以被编译器极度优化（内联、尾调用优化等），执行速度接近机器极限；而 `std::function` 的虚函数调用开销无法被完全优化掉
 
-2. **类型系统的代价**：C++ 是静态类型语言，用 `std::function` 包装 lambda 会引入类型擦除（type erasure），每次调用都需要通过虚函数表分发
+2. **类型系统的代价**：C++ 是静态类型语言，用 `std::function` 包装 lambda 会引入类型擦除（type erasure），每次调用都需要通过虚函数表分发；反过来说，Python 没有强制静态类型系统，很多调用要在运行时完成动态分发与类型处理，因此函数调用的基线开销本来就更大。
 
 3. **Python 的"先天劣势"**：Python 的函数调用本身就慢（解释执行、动态分发），所以 lambda 和普通函数的相对差距较小；C++ 普通函数调用太快，lambda 的相对开销就被放大了
 
 4. **内存布局**：C++ 的 `std::function` 需要在堆上分配闭包对象，而 Python 的函数对象本来就是堆分配的，相对差距不明显
 
-**结论**：Lambda 演算理论上很美，但在实际工程中，性能代价是显著的。这也解释了为什么我们需要编译器优化——让程序员写优雅的 Lambda 代码，执行高效的 Native 代码。
+**结论**：Lambda 演算理论上很美，但在实际工程中，性能代价是显著的。
+
+
+不过，Lambda 演算依然有非常重要的优点：
+
+1. **理论基础统一**：它提供了一个极简但完备的计算模型，让我们能用统一框架讨论"什么是可计算"。
+2. **高可组合性**：函数作为一等公民，天然支持组合与抽象，很多现代函数式编程思想都源于此。
+3. **形式化推理友好**：表达式结构简单，便于做等价变换、正确性证明与程序语义分析。
+4. **对编译器与语言设计启发深远**：闭包、作用域、柯里化、惰性求值等核心机制，都可以在 Lambda 演算中找到清晰原型。
+
+换句话说，Lambda 演算未必是工程里最快的实现方式，但它依然是理解编程语言本质与优化方向的一套重要"坐标系"。
 
 ---
 
-## 4. 装饰器即编译器：Lowering 到 Native 代码
 
-### 3.1 Python 性能问题
-
-Lambda 演算在 Python 中的实现涉及多层 lambda 嵌套调用，每次调用都有：
-- 闭包创建开销
-- 虚拟机分发开销
-- 类型检查和引用计数
-
-<!-- **核心思想**：~~如果我们能在 AST 层面识别 Lambda 演算的模式，直接 lowering 到优化过的 C 实现，就能获得性能提升。~~ 但是我写不出来 -->
-
-### 3.2 @kernel 装饰器（只保留加法）
-
-```python
-def kernel(func):
-    """将函数体作为嵌入式 DSL 处理"""
-    # -------- Parse Python AST --------
-    src = inspect.getsource(func)
-    tree = ast.parse(src)
-    func_def = tree.body[0]
-
-    # Expect: return <expr>
-    expr = func_def.body[0].value
-    arg_names = [arg.arg for arg in func_def.args.args]
-
-    # -------- Lowering: AST -> native AST nodes --------
-    op_codes = {'ADD': 1}
-
-    def lower(node, env):
-        if isinstance(node, ast.Name):
-            if node.id in env:
-                return lib.church_ast_int(env[node.id])
-            return lib.church_ast_op(op_codes[node.id])
-
-        if isinstance(node, ast.Call):
-            # 通用函数应用：f(x)
-            fn_node = lower(node.func, env)
-            arg_node = lower(node.args[0], env)
-            return lib.church_ast_call(fn_node, arg_node)
-
-    # -------- Runtime wrapper --------
-    def wrapper(*args):
-        env = dict(zip(arg_names, args))
-        root = lower(expr, env)
-        try:
-            return lib.church_ast_eval(root)
-        finally:
-            lib.church_ast_free(root)
-
-    return wrapper
-
-@kernel
-def add(m, n):
-    return ADD(m)(n)
-```
-
-### 3.3 C 实现
-
-```c
-typedef enum { NODE_INT, NODE_OP, NODE_CALL } NodeKind;
-
-typedef struct Node {
-    int kind;
-    int value;
-    struct Node* fn;
-    struct Node* arg;
-} Node;
-
-// 构造应用树：ADD(m)(n) 会变成 CALL(CALL(OP_ADD, m), n)
-void* church_ast_call(void* fn, void* arg);
-int church_ast_eval(void* root);     // 仅匹配 ADD(m)(n) 并计算 m+n
-
-```
-**关键洞察**：只实现最核心链路也足够展示 lowering：
-Python 负责构造应用树，C 负责识别 `ADD(m)(n)` 的应用结构并返回结果。
-
-也就是说，Python 侧仍然负责 `ast.parse` 与语法树遍历；C 侧负责执行一个简化版 Lambda 应用树（`OP` + `CALL`），保留了“函数应用即计算”的形态。
-
----
-
-## 5. 总结
-
-本报告通过 Lambda 演算展示了计算的抽象层次：
-
-1. **Lambda 演算**：数学上的极简形式系统，用函数表示一切
-2. **Python 实现**：通过 lambda 嵌套模拟函数应用
-3. **AST 分析**：把 `ADD(m)(n)` 看成语法树上的应用节点
-4. **装饰器编译器**：将应用树 lowering 到 Native，并完成加法计算
-
-**核心洞察**：计算的本质是将高层次的抽象逐步 lowering 到物理机器可执行的指令。装饰器给了我们在 Python 中介入这个过程的能力，实现了"用户写优雅的 Lambda 代码，执行高效的 Native 代码"。
 
