@@ -33,7 +33,7 @@ Module(Assign(targets=[Name('IDENTITY')],
               value=Lambda(args=[x], body=Name(x))))
 ```
 
-### 2.2 Church 编码
+### 2.2 Church 编码：数与布尔
 
 在 Lambda 演算中，可以用函数表示数据和逻辑：
 
@@ -43,6 +43,13 @@ ZERO  = lambda f: lambda x: x         # λf.λx.x
 ONE   = lambda f: lambda x: f(x)      # λf.λx.f x
 TWO   = lambda f: lambda x: f(f(x))   # λf.λx.f (f x)
 
+# Church Booleans
+TRUE  = lambda t: lambda f: t         # 选择第一个参数
+FALSE = lambda t: lambda f: f         # 选择第二个参数
+
+# IF 条件：IF(p)(a)(b) = if p then a else b
+IF    = lambda p: lambda a: lambda b: p(a)(b)
+
 # Church Arithmetic
 ADD   = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 
@@ -50,15 +57,163 @@ ADD   = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 to_int = lambda n: n(lambda k: k + 1)(0)
 ```
 
-### 2.3 执行流程分析
+**AST 视角**：以 `TRUE` 为例
 
-`ADD(ONE)(TWO)` 的字节码：
-```text
-LOAD_NAME (ADD), CALL → 返回等待第二个参数的函数
-LOAD_NAME (TWO), CALL → 执行加法
+```python
+TRUE = lambda t: lambda f: t    # λt.λf.t
 ```
 
-这体现了 Lambda 演算的**柯里化**特性：所有函数都是单参数的，多参数函数通过嵌套单参数函数实现。
+从 AST 看，这是一个嵌套的 Lambda 表达式：
+```
+Lambda(
+  args=[arg='t'],
+  body=Lambda(
+    args=[arg='f'],
+    body=Name('t')    # 返回第一个参数 t
+  )
+)
+```
+
+**字节码视角**：`TRUE` 的执行
+
+```text
+--- TRUE = lambda t: lambda f: t ---
+  1  LOAD_CONST (<code object <lambda>>)  # 加载内层 lambda
+     MAKE_FUNCTION                         # 创建函数
+     RETURN_VALUE
+
+--- 内层 lambda (接收 t) ---
+  1  LOAD_FAST (t)                         # 加载闭包变量 t
+     BUILD_TUPLE 1                         # 构建闭包元组
+     LOAD_CONST (<code object <lambda>>)   # 加载最内层 lambda
+     MAKE_FUNCTION                         # 创建带闭包的函数
+     SET_FUNCTION_ATTRIBUTE (closure)      # 绑定闭包
+
+--- 最内层 lambda (接收 f，返回 t) ---
+  1  LOAD_DEREF (t)                        # 从闭包中取 t
+     RETURN_VALUE
+```
+
+**关键观察**：
+- `TRUE` 和 `FALSE` 的 AST 结构完全相同，只是返回的变量不同
+- `LOAD_DEREF` 表示从闭包中捕获外部变量，这是 Lambda 演算的核心机制
+
+### 2.3 IF 条件的 AST 分析
+
+```python
+IF = lambda p: lambda a: lambda b: p(a)(b)
+```
+
+AST 结构：
+```
+Lambda(args=[p], body=
+  Lambda(args=[a], body=
+    Lambda(args=[b], body=
+      Call(                          # p(a)(b)
+        func=Call(
+          func=Name('p'),
+          args=[Name('a')]
+        ),
+        args=[Name('b')]
+      )
+    )
+  )
+)
+```
+
+字节码核心部分（最内层）：
+```text
+  LOAD_DEREF (p)      # 加载谓词 p
+  CALL
+  LOAD_DEREF (a)      # 加载 then 分支 a
+  CALL                # p(a)
+  LOAD_FAST (b)       # 加载 else 分支 b
+  CALL                # p(a)(b)
+  RETURN_VALUE
+```
+
+**这体现了 Lambda 演算中"控制流即函数应用"的思想**：`IF` 不是语法结构，而是一个接受三个参数的函数。
+
+### 2.4 ADD 的字节码深入分析
+
+```python
+ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
+```
+
+让我们追踪 `ADD(ONE)(TWO)` 的完整执行流程：
+
+**第一步：ADD 本身的字节码**
+
+```text
+ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
+
+--- 外层 lambda (接收 m) ---
+  LOAD_FAST (m)
+  BUILD_TUPLE 1         # 将 m 加入闭包
+  LOAD_CONST (<lambda>) # 加载下一层 lambda
+  MAKE_FUNCTION
+  SET_FUNCTION_ATTRIBUTE (closure)
+  RETURN_VALUE          # 返回等待 n 的函数
+```
+
+**第二步：ADD(ONE) 返回等待 n 的函数**
+
+```text
+--- 第二层 lambda (接收 n) ---
+  COPY_FREE_VARS 1      # 复制 m 到闭包
+  LOAD_FAST (m)
+  LOAD_FAST (n)
+  BUILD_TUPLE 2         # 将 m, n 都加入闭包
+  LOAD_CONST (<lambda>) # 加载下一层 lambda
+  MAKE_FUNCTION
+  SET_FUNCTION_ATTRIBUTE (closure)
+  RETURN_VALUE          # 返回等待 f 的函数
+```
+
+**第三步：ADD(ONE)(TWO) 返回等待 f 的函数**
+
+```text
+--- 第三层 lambda (接收 f) ---
+  COPY_FREE_VARS 2      # 复制 m, n 到闭包
+  LOAD_FAST (f)
+  LOAD_FAST (m)
+  LOAD_FAST (n)
+  BUILD_TUPLE 3         # 将 m, n, f 都加入闭包
+  LOAD_CONST (<lambda>) # 加载最内层 lambda
+  MAKE_FUNCTION
+  SET_FUNCTION_ATTRIBUTE (closure)
+  RETURN_VALUE          # 返回等待 x 的函数
+```
+
+**第四步：最终执行（当传入 f 和 x 时）**
+
+```text
+--- 最内层 lambda (接收 x，执行计算) ---
+  COPY_FREE_VARS 3      # 复制 m, n, f 到闭包
+
+  # 计算 m(f)
+  LOAD_DEREF (m)
+  CALL, LOAD_DEREF (f), CALL
+
+  # 计算 n(f)(x)
+  LOAD_DEREF (n), CALL, LOAD_DEREF (f), CALL, LOAD_FAST (x), CALL
+
+  # m(f)(n(f)(x))  -- 前面的结果作为函数调用后面的结果
+  CALL
+  RETURN_VALUE
+```
+
+**性能分析**：每次 `CALL` 都是函数调用开销，`ADD(ONE)(TWO)` 需要多次 `CALL` 才能完成。这解释了为什么 Lambda 递归比普通递归慢得多。
+
+### 2.5 柯里化的本质
+
+从上述字节码分析可以看出，**柯里化**（Currying）的代价：
+
+1. **多层闭包**：每个参数都创建一层新的闭包，需要 `BUILD_TUPLE` 和 `SET_FUNCTION_ATTRIBUTE`
+2. **变量捕获**：使用 `LOAD_DEREF` 从闭包中取值，比直接访问局部变量慢
+3. **多次函数调用**：`m(f)(n(f)(x))` 需要 5 次 `CALL` 指令
+
+尽管如此，这种**所有函数都是单参数**的统一性使得 Lambda 演算具有极简的理论美感。
 
 ---
 
