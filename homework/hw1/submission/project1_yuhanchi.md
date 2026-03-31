@@ -62,7 +62,102 @@ LOAD_NAME (TWO), CALL → 执行加法
 
 ---
 
-## 3. 装饰器即编译器：Lowering 到 Native 代码
+## 3. Lambda 演算的性能思考
+
+啊好的，既然我们已经了解了其基本运作方式了，我们思考一下，它好不好用呢？
+
+从理论上看，Lambda 演算非常优雅——用纯函数表示一切。但实际运行起来，这种"函数套函数"的方式效率如何？我们来做个简单的实验：用 Fibonacci 数列来对比普通递归和 Lambda 递归（Church 数）的性能差异。
+
+### 3.1 Python 中的性能对比
+
+```python
+# 普通递归
+def fib_normal(n):
+    if n <= 1:
+        return n
+    return fib_normal(n - 1) + fib_normal(n - 2)
+
+# Lambda 递归（Church 数）
+def fib_lambda(n):
+    if n <= 1:
+        return to_church(n)
+    return add(fib_lambda(n - 1))(fib_lambda(n - 2))
+```
+
+运行结果：
+
+| n | 普通递归耗时 | Lambda 递归耗时 | 慢 |
+|---|:-----------:|:--------------:|:--:|
+| 10 | 7μs | 72μs | **10x** |
+| 12 | 13μs | 146μs | **11x** |
+| 14 | 34μs | 516μs | **15x** |
+| 16 | 90μs | 1431μs | **16x** |
+| 18 | 185μs | 3641μs | **20x** |
+
+结论：在 Python 中，Lambda 递归比普通递归慢 **10-20 倍**，且差距随 n 增大而扩大。
+
+### 3.2 跨语言对比：C++ 的表现
+
+那么，如果是编译型语言如 C++，情况会有所不同吗？我们用类似的方式实现 C++ 版本：
+
+```cpp
+// C++ 普通递归
+long long fib_normal(long long n) {
+    if (n <= 1) return n;
+    return fib_normal(n - 1) + fib_normal(n - 2);
+}
+
+// C++ Lambda 递归（模仿 Church 数）
+using Church = function<function<long long(long long)>(function<long long(long long)>)>;
+Church fib_lambda(long long n) {
+    if (n <= 1) return to_church(n);
+    return add(fib_lambda(n - 1), fib_lambda(n - 2));
+}
+```
+
+C++ 运行结果：
+
+| n | C++ 普通递归 | C++ Lambda 递归 | 慢 |
+|---|:-----------:|:--------------:|:--:|
+| 10 | ~0μs | 105μs | **>100x** |
+| 12 | 1μs | 157μs | **157x** |
+| 14 | 1μs | 457μs | **457x** |
+| 16 | 2μs | 1293μs | **647x** |
+| 18 | 5μs | 3764μs | **753x** |
+
+### 3.3 四种方式汇总对比
+
+将四种方式放在一起：
+
+| n | Python 普通 | Python Lambda | C++ 普通 | C++ Lambda |
+|---|:-----------:|:-------------:|:-------:|:----------:|
+| 10 | 7μs | 72μs | ~0μs | 105μs |
+| 14 | 34μs | 516μs | 1μs | 457μs |
+| 18 | 185μs | 3641μs | 5μs | 3764μs |
+
+**关键发现：**
+
+1. **Lambda 递归确实慢**：无论 Python 还是 C++，Lambda 递归都比普通递归慢得多
+2. **语言差异**：C++ 普通递归比 Python 快 10-40 倍，但 C++ Lambda 与 Python Lambda 速度相当
+3. **C++ 中差异更极端**：C++ Lambda 比 C++ 普通慢 **150-750 倍**，远超 Python 的 10-20 倍
+
+### 3.4 为什么 C++ 中这种差异更加明显？
+
+这背后有几个原因：
+
+1. **编译器优化的极限**：C++ 的普通递归可以被编译器极度优化（内联、尾调用优化等），执行速度接近机器极限；而 `std::function` 的虚函数调用开销无法被完全优化掉
+
+2. **类型系统的代价**：C++ 是静态类型语言，用 `std::function` 包装 lambda 会引入类型擦除（type erasure），每次调用都需要通过虚函数表分发
+
+3. **Python 的"先天劣势"**：Python 的函数调用本身就慢（解释执行、动态分发），所以 lambda 和普通函数的相对差距较小；C++ 普通函数调用太快，lambda 的相对开销就被放大了
+
+4. **内存布局**：C++ 的 `std::function` 需要在堆上分配闭包对象，而 Python 的函数对象本来就是堆分配的，相对差距不明显
+
+**结论**：Lambda 演算理论上很美，但在实际工程中，性能代价是显著的。这也解释了为什么我们需要编译器优化——让程序员写优雅的 Lambda 代码，执行高效的 Native 代码。
+
+---
+
+## 4. 装饰器即编译器：Lowering 到 Native 代码
 
 ### 3.1 Python 性能问题
 
@@ -142,7 +237,7 @@ Python 负责构造应用树，C 负责识别 `ADD(m)(n)` 的应用结构并返�
 
 ---
 
-## 4. 总结
+## 5. 总结
 
 本报告通过 Lambda 演算展示了计算的抽象层次：
 
