@@ -1,71 +1,10 @@
-import ast
-import inspect
-import ctypes
+"""
+Pure Python Lambda Calculus - Church Numerals & Booleans
+纯 Lambda 演算实现：Church 数和布尔值
+"""
 
 # ============================================================
-# Native primitive kernels (precompiled shared library)
-# ============================================================
-
-lib = ctypes.CDLL("./liblambda.so")
-
-lib.church_succ.argtypes = [ctypes.c_int]
-lib.church_succ.restype = ctypes.c_int
-
-lib.church_add.argtypes = [ctypes.c_int, ctypes.c_int]
-lib.church_add.restype = ctypes.c_int
-
-
-# ============================================================
-# @kernel decorator: Python AST -> lowering -> native execution
-# ============================================================
-
-def kernel(func):
-    """
-    Treat the function body as an embedded DSL.
-    The body is parsed, not executed.
-    """
-    # -------- Parse Python AST --------
-    src = inspect.getsource(func)
-    tree = ast.parse(src)
-    func_def = tree.body[0]
-
-    # Expect: return <expr>
-    return_stmt = func_def.body[0]
-    expr = return_stmt.value
-    arg_names = [arg.arg for arg in func_def.args.args]
-
-    # -------- Lowering: AST -> primitive ops --------
-    def lower(node, env):
-        if isinstance(node, ast.Name):
-            return env[node.id]
-
-        if isinstance(node, ast.Call):
-            # Handle curried calls: ADD(m)(n)
-            if isinstance(node.func, ast.Call):
-                op_name = node.func.func.id
-                if op_name == 'ADD':
-                    m = lower(node.func.args[0], env)
-                    n = lower(node.args[0], env)
-                    return lib.church_add(m, n)
-
-            # Handle simple calls: SUCC(n)
-            if hasattr(node.func, 'id'):
-                op_name = node.func.id
-                if op_name == 'SUCC':
-                    n = lower(node.args[0], env)
-                    return lib.church_succ(n)
-
-    # -------- Runtime wrapper --------
-    def wrapper(*args):
-        env = dict(zip(arg_names, args))
-        result = lower(expr, env)
-        return result
-
-    return wrapper
-
-
-# ============================================================
-# Church Numerals (纯 Python，用于理解)
+# Church Numerals
 # ============================================================
 
 ZERO = lambda f: lambda x: x
@@ -76,47 +15,118 @@ THREE = lambda f: lambda x: f(f(f(x)))
 # Identity function
 IDENTITY = lambda x: x
 
-# Church Booleans
-TRUE = lambda t: lambda f: t
-FALSE = lambda t: lambda f: f
-
-# IF condition: if p then a else b
-# In Church encoding, the predicate p is a boolean that selects between a and b
-IF = lambda p: lambda a: lambda b: p(a)(b)
-
+# Successor: SUCC(n) = n + 1
 SUCC = lambda n: lambda f: lambda x: f(n(f)(x))
+
+# Addition: ADD(m)(n) = m + n
 ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 
-# 转换函数：Church numeral -> int
+# Multiplication: MUL(m)(n) = m * n
+MUL = lambda m: lambda n: lambda f: m(n(f))
+
+# Exponentiation: POW(m)(n) = m^n
+POW = lambda m: lambda n: n(m)
+
+# Predecessor (decrement): PRED(n) = n - 1
+PRED = lambda n: lambda f: lambda x: n(lambda g: lambda h: h(g(f)))(lambda u: x)(lambda u: u)
+
+# Subtraction: SUB(m)(n) = m - n
+SUB = lambda m: lambda n: n(PRED)(m)
+
+
+# ============================================================
+# Church Booleans
+# ============================================================
+
+# TRUE returns first argument
+TRUE = lambda t: lambda f: t
+
+# FALSE returns second argument
+FALSE = lambda t: lambda f: f
+
+# IF condition: IF(p)(a)(b) = if p then a else b
+# In Church encoding, the predicate p is already a selector
+IF = lambda p: lambda a: lambda b: p(a)(b)
+
+# Logical operations
+AND = lambda p: lambda q: p(q)(p)
+OR = lambda p: lambda q: p(p)(q)
+NOT = lambda p: p(FALSE)(TRUE)
+
+
+# ============================================================
+# Church Pairs
+# ============================================================
+
+PAIR = lambda x: lambda y: lambda f: f(x)(y)
+FIRST = lambda p: p(TRUE)
+SECOND = lambda p: p(FALSE)
+
+
+# ============================================================
+# Conversion Functions
+# ============================================================
+
+# Convert Church numeral to int
 to_int = lambda n: n(lambda k: k + 1)(0)
 
+# Convert int to Church numeral
+def int_to_church(n):
+    """Convert a Python int to Church numeral"""
+    if n == 0:
+        return ZERO
+    return SUCC(int_to_church(n - 1))
+
+# Convert Church boolean to bool
+to_bool = lambda b: b(True)(False)
+
+# Convert bool to Church boolean
+def bool_to_church(b):
+    return TRUE if b else FALSE
+
 
 # ============================================================
-# User-defined kernels (使用 @kernel 加速)
-# ============================================================
-
-@kernel
-def succ(n):
-    return SUCC(n)
-
-@kernel
-def add(m, n):
-    return ADD(m)(n)
-
-
-# ============================================================
-# Test
+# Test & Demo
 # ============================================================
 
 if __name__ == "__main__":
-    # 纯 Python Lambda 演算
-    print("=== Pure Python Lambda Calculus ===")
-    print(f"to_int(ONE) = {to_int(ONE)}")
-    print(f"to_int(TWO) = {to_int(TWO)}")
-    print(f"to_int(SUCC(TWO)) = {to_int(SUCC(TWO))}")
-    print(f"to_int(ADD(ONE)(TWO)) = {to_int(ADD(ONE)(TWO))}")
+    print("=" * 50)
+    print("Pure Python Lambda Calculus Demo")
+    print("=" * 50)
 
-    # @kernel 加速版本
-    print("\n=== @kernel Native Acceleration ===")
-    print(f"succ(2) = {succ(2)}")
-    print(f"add(1, 2) = {add(1, 2)}")
+    # Test Church Numerals
+    print("\n--- Church Numerals ---")
+    for i, church in enumerate([ZERO, ONE, TWO, THREE]):
+        print(f"{i} = {to_int(church)}")
+
+    print(f"\nSUCC(THREE) = {to_int(SUCC(THREE))}")
+    print(f"ADD(ONE)(TWO) = {to_int(ADD(ONE)(TWO))}")
+    print(f"MUL(TWO)(THREE) = {to_int(MUL(TWO)(THREE))}")
+    print(f"POW(TWO)(THREE) = {to_int(POW(TWO)(THREE))}")  # 2^3 = 8
+    print(f"PRED(THREE) = {to_int(PRED(THREE))}")
+    print(f"SUB(THREE)(ONE) = {to_int(SUB(THREE)(ONE))}")
+
+    # Test Church Booleans
+    print("\n--- Church Booleans ---")
+    print(f"TRUE = {to_bool(TRUE)}")
+    print(f"FALSE = {to_bool(FALSE)}")
+    print(f"AND(TRUE)(FALSE) = {to_bool(AND(TRUE)(FALSE))}")
+    print(f"OR(TRUE)(FALSE) = {to_bool(OR(TRUE)(FALSE))}")
+    print(f"NOT(TRUE) = {to_bool(NOT(TRUE))}")
+
+    # Test IF condition
+    print("\n--- IF Condition ---")
+    print(f"IF(TRUE)(1)(2) = {IF(TRUE)(1)(2)}")
+    print(f"IF(FALSE)(1)(2) = {IF(FALSE)(1)(2)}")
+
+    # Test Church Pairs
+    print("\n--- Church Pairs ---")
+    pair = PAIR(3)(5)
+    print(f"PAIR(3)(5): FIRST = {FIRST(pair)}, SECOND = {SECOND(pair)}")
+
+    # Dynamic computation
+    print("\n--- Dynamic Computation ---")
+    five = int_to_church(5)
+    seven = int_to_church(7)
+    print(f"5 + 7 = {to_int(ADD(five)(seven))}")
+    print(f"5 * 7 = {to_int(MUL(five)(seven))}")
