@@ -44,7 +44,6 @@ ONE   = lambda f: lambda x: f(x)      # λf.λx.f x
 TWO   = lambda f: lambda x: f(f(x))   # λf.λx.f (f x)
 
 # Church Arithmetic
-SUCC  = lambda n: lambda f: lambda x: f(n(f)(x))
 ADD   = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
 
 # 转换函数
@@ -74,7 +73,7 @@ Lambda 演算在 Python 中的实现涉及多层 lambda 嵌套调用，每次调
 
 <!-- **核心思想**：~~如果我们能在 AST 层面识别 Lambda 演算的模式，直接 lowering 到优化过的 C 实现，就能获得性能提升。~~ 但是我写不出来 -->
 
-### 3.2 @kernel 装饰器
+### 3.2 @kernel 装饰器（只保留加法）
 
 ```python
 def kernel(func):
@@ -88,36 +87,58 @@ def kernel(func):
     expr = func_def.body[0].value
     arg_names = [arg.arg for arg in func_def.args.args]
 
-    # -------- Lowering: AST -> primitive ops --------
+    # -------- Lowering: AST -> native AST nodes --------
+    op_codes = {'ADD': 1}
+
     def lower(node, env):
+        if isinstance(node, ast.Name):
+            if node.id in env:
+                return lib.church_ast_int(env[node.id])
+            return lib.church_ast_op(op_codes[node.id])
+
         if isinstance(node, ast.Call):
-            # 识别 ADD(m)(n) 模式
-            if isinstance(node.func, ast.Call):
-                op_name = node.func.func.id
-                if op_name == 'ADD':
-                    m = lower(node.func.args[0], env)
-                    n = lower(node.args[0], env)
-                    return lib.church_add(m, n)
+            # 通用函数应用：f(x)
+            fn_node = lower(node.func, env)
+            arg_node = lower(node.args[0], env)
+            return lib.church_ast_call(fn_node, arg_node)
 
     # -------- Runtime wrapper --------
     def wrapper(*args):
         env = dict(zip(arg_names, args))
-        return lower(expr, env)
+        root = lower(expr, env)
+        try:
+            return lib.church_ast_eval(root)
+        finally:
+            lib.church_ast_free(root)
 
     return wrapper
+
+@kernel
+def add(m, n):
+    return ADD(m)(n)
 ```
 
 ### 3.3 C 实现
 
 ```c
-// Church 加法：m + n
-int church_add(int m, int n) {
-    return m + n;
-}
+typedef enum { NODE_INT, NODE_OP, NODE_CALL } NodeKind;
+
+typedef struct Node {
+    int kind;
+    int value;
+    struct Node* fn;
+    struct Node* arg;
+} Node;
+
+// 构造应用树：ADD(m)(n) 会变成 CALL(CALL(OP_ADD, m), n)
+void* church_ast_call(void* fn, void* arg);
+int church_ast_eval(void* root);     // 仅匹配 ADD(m)(n) 并计算 m+n
 
 ```
+**关键洞察**：只实现最核心链路也足够展示 lowering：
+Python 负责构造应用树，C 负责识别 `ADD(m)(n)` 的应用结构并返回结果。
 
-**关键洞察**：Church encoding 的核心是"函数调用次数"。在 C 中直接用整数表示，所有 Lambda 演算操作简化为整数运算。
+也就是说，Python 侧仍然负责 `ast.parse` 与语法树遍历；C 侧负责执行一个简化版 Lambda 应用树（`OP` + `CALL`），保留了“函数应用即计算”的形态。
 
 ---
 
@@ -126,9 +147,9 @@ int church_add(int m, int n) {
 本报告通过 Lambda 演算展示了计算的抽象层次：
 
 1. **Lambda 演算**：数学上的极简形式系统，用函数表示一切
-2. **Python 实现**：通过 lambda 嵌套模拟 Lambda 演算
-3. **AST 分析**：理解程序的结构化表示
-4. **装饰器编译器**：通过模式识别和 lowering，将高层抽象映射到高效实现
+2. **Python 实现**：通过 lambda 嵌套模拟函数应用
+3. **AST 分析**：把 `ADD(m)(n)` 看成语法树上的应用节点
+4. **装饰器编译器**：将应用树 lowering 到 Native，并完成加法计算
 
 **核心洞察**：计算的本质是将高层次的抽象逐步 lowering 到物理机器可执行的指令。装饰器给了我们在 Python 中介入这个过程的能力，实现了"用户写优雅的 Lambda 代码，执行高效的 Native 代码"。
 

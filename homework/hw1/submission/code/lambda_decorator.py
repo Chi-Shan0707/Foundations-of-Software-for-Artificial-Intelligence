@@ -8,14 +8,11 @@ import ctypes
 
 lib = ctypes.CDLL("./liblambda.so")
 
-lib.church_add.argtypes = [ctypes.c_int, ctypes.c_int]
-lib.church_add.restype = ctypes.c_int
-
-lib.church_mul.argtypes = [ctypes.c_int, ctypes.c_int]
-lib.church_mul.restype = ctypes.c_int
-
 lib.church_succ.argtypes = [ctypes.c_int]
 lib.church_succ.restype = ctypes.c_int
+
+lib.church_add.argtypes = [ctypes.c_int, ctypes.c_int]
+lib.church_add.restype = ctypes.c_int
 
 
 # ============================================================
@@ -42,22 +39,14 @@ def kernel(func):
         if isinstance(node, ast.Name):
             return env[node.id]
 
-        if isinstance(node, ast.Constant):
-            return node.value
-
         if isinstance(node, ast.Call):
             # Handle curried calls: ADD(m)(n)
             if isinstance(node.func, ast.Call):
-                outer = node.func
-                if hasattr(outer.func, 'id'):
-                    op_name = outer.func.id
-                    if op_name in ['ADD', 'MUL']:
-                        m = lower(outer.args[0], env)
-                        n = lower(node.args[0], env)
-                        if op_name == 'ADD':
-                            return lib.church_add(m, n)
-                        elif op_name == 'MUL':
-                            return lib.church_mul(m, n)
+                op_name = node.func.func.id
+                if op_name == 'ADD':
+                    m = lower(node.func.args[0], env)
+                    n = lower(node.args[0], env)
+                    return lib.church_add(m, n)
 
             # Handle simple calls: SUCC(n)
             if hasattr(node.func, 'id'):
@@ -65,8 +54,6 @@ def kernel(func):
                 if op_name == 'SUCC':
                     n = lower(node.args[0], env)
                     return lib.church_succ(n)
-
-        raise NotImplementedError("Unsupported AST node")
 
     # -------- Runtime wrapper --------
     def wrapper(*args):
@@ -78,7 +65,34 @@ def kernel(func):
 
 
 # ============================================================
-# User-defined kernels (pure Python syntax)
+# Church Numerals (纯 Python，用于理解)
+# ============================================================
+
+ZERO = lambda f: lambda x: x
+ONE = lambda f: lambda x: f(x)
+TWO = lambda f: lambda x: f(f(x))
+THREE = lambda f: lambda x: f(f(f(x)))
+
+# Identity function
+IDENTITY = lambda x: x
+
+# Church Booleans
+TRUE = lambda t: lambda f: t
+FALSE = lambda t: lambda f: f
+
+# IF condition: if p then a else b
+# In Church encoding, the predicate p is a boolean that selects between a and b
+IF = lambda p: lambda a: lambda b: p(a)(b)
+
+SUCC = lambda n: lambda f: lambda x: f(n(f)(x))
+ADD = lambda m: lambda n: lambda f: lambda x: m(f)(n(f)(x))
+
+# 转换函数：Church numeral -> int
+to_int = lambda n: n(lambda k: k + 1)(0)
+
+
+# ============================================================
+# User-defined kernels (使用 @kernel 加速)
 # ============================================================
 
 @kernel
@@ -89,16 +103,20 @@ def succ(n):
 def add(m, n):
     return ADD(m)(n)
 
-@kernel
-def mul(m, n):
-    return MUL(m)(n)
-
 
 # ============================================================
 # Test
 # ============================================================
 
 if __name__ == "__main__":
-    print("succ(2) =", succ(2))
-    print("add(1, 2) =", add(1, 2))
-    print("mul(2, 3) =", mul(2, 3))
+    # 纯 Python Lambda 演算
+    print("=== Pure Python Lambda Calculus ===")
+    print(f"to_int(ONE) = {to_int(ONE)}")
+    print(f"to_int(TWO) = {to_int(TWO)}")
+    print(f"to_int(SUCC(TWO)) = {to_int(SUCC(TWO))}")
+    print(f"to_int(ADD(ONE)(TWO)) = {to_int(ADD(ONE)(TWO))}")
+
+    # @kernel 加速版本
+    print("\n=== @kernel Native Acceleration ===")
+    print(f"succ(2) = {succ(2)}")
+    print(f"add(1, 2) = {add(1, 2)}")
