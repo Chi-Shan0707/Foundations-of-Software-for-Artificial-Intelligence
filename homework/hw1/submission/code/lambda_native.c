@@ -1,8 +1,11 @@
 #include <stddef.h>
 
 // SUCC(n) = n + 1
+
+
 int church_succ(int n) {
-    return n + 1;
+    if (n <= 0) return n;
+    return 1+church_succ(n-1);
 }
 
 // ADD(m, n) = 应用 m 次 SUCC 到 n
