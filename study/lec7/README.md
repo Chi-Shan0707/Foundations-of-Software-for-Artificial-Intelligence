@@ -137,6 +137,7 @@ class LeNet5(nn.Module):
 - **Conv 层保持 PyTorch 原生**：卷积的优化极为复杂，CuDNN 已经高度优化，用 Triton 重写收益不大
 - **FC 层替换为 Triton**：全连接层的计算本质是矩阵乘法，Triton 的 Autotune 可以针对具体维度找到优于通用 `nn.Linear` 的配置
 - **`torch.autograd.Function`**：通过自定义 forward/backward 将 Triton Kernel 嵌入 PyTorch 的自动微分系统。forward 调用 Triton Kernel 计算，backward 用 PyTorch 原生 `@` 运算计算梯度（因为梯度计算也是矩阵乘法，直接用 PyTorch 即可）
+- **`backward` 函数是算子融入训练流程的关键**：只有实现了 `backward`，PyTorch 才能通过 `loss.backward()` → `grad_out` → `backward(ctx, grad_out)` 计算参数梯度，进而 `optimizer.step()` 更新权重。没有 `backward` 的自定义算子只能用于推理（inference），无法参与训练
 
 ---
 
@@ -144,24 +145,58 @@ class LeNet5(nn.Module):
 
 以下为课堂讲授的关键内容摘录，与笔记相互补充：
 
-### GPU 架构回顾
+### 1. GPU 体系结构与 CUDA 编程回顾
 
 - GPU 由多个 **SM（Streaming Multiprocessor）** 组成，每个 SM 类似于 CPU 上的一个 core，但运算能力简单，只能做基本的运算
 - 真正的调度以 **SM** 为单位，一个 SM 可以调度一个或多个 **Block**
 - Block 内有多个 **Thread**，维度是三维的（方便矩阵运算的索引）
 - Shared Memory 类似于 CPU 中的 **L1 Cache**，访问速度远快于 Global Memory
+- 任务在 GPU 上执行需经历完整的数据搬运流程：
 
-### 任务划分
+```
+CPU 端（Host）                        GPU 端（Device）
+┌──────────────┐                     ┌──────────────┐
+│ 准备数据      │                     │              │
+│ (torch.randn) │                     │              │
+└──────┬───────┘                     │              │
+       │ .cuda()                     │              │
+       ▼                             │              │
+┌──────────────┐    数据拷贝         │              │
+│ 数据在 GPU 上 │ ─────────────────→ │ Global Mem   │
+└──────┬───────┘   (CPU → GPU)      │              │
+       │ kernel[grid](...)           │              │
+       ▼                             │              │
+       │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─→│  Kernel 执行  │
+       │        启动（异步）          │  (并行计算)   │
+       │                             │              │
+       │ .cpu()                      │              │
+       ▼                             │              │
+┌──────────────┐    数据拷贝         │              │
+│ 结果回 CPU   │ ←───────────────── │ Global Mem   │
+└──────────────┘   (GPU → CPU)      └──────────────┘
+```
 
-- 一个完整的任务（如矩阵乘法）称为 **Grid**
-- Grid 被划分为多个 **Block**（以向量化乘法为例：1024 个元素，Block Size=256，则需要 4 个 Block）
-- 每个 Block 内有多个 Thread，每个 Thread 是最小运算单元
+- 传统的 CUDA 编程需要编写 C++/CUDA C 代码，开发流程繁琐（手动管理 Shared Memory、线程同步、内存合并等），不利于快速迭代和实验
 
-### Kernel 编程
+### 2. Triton 框架与算子开发
 
-- GPU 上运行的程序称为 **Kernel**
-- Host 端（CPU）负责准备数据、划分 Grid、启动 Kernel
-- Device 端（GPU）负责实际的并行计算
+- Triton 是一个基于 Python 的 GPU Kernel 编程框架，以 **Python 装饰器**（`@triton.jit`）的形式简化算子开发
+- 允许开发者用 Python 编写 Kernel 代码，由 Triton 编译器**自动翻译成高效的 CUDA PTX/SASS 代码**
+- Triton 的核心抽象包括：
+  - **Program**：对应一个 CUDA Block，是独立的计算单元，以"一组线程"的粒度编程
+  - **Mask**：用于处理边界检查，避免越界读写，提高代码简洁性和安全性。Triton 的 `tl.load/store` 接受 `mask` 参数，自动跳过无效索引
+  - **Broadcast**：支持向量化和广播操作，通过 `[:, None]` / `[None, :]` 等索引技巧实现维度扩展，简化矩阵运算的实现
+
+### 3. 矩阵乘法算子实现
+
+- 课程通过向量乘法和分块矩阵乘法两个案例，演示了 Triton 的使用方法
+- 分块矩阵乘法通过将大矩阵划分为小块（Tile），利用 GPU 的共享内存进行块内计算，解决了单个 Block 的内存容量限制问题
+- 介绍了 Triton 的 **Auto-tune** 功能，用于自动寻找最优的 Block 划分和线程数配置，以获得最佳性能
+
+### 4. 算子集成与自动微分
+
+- 讲解了如何将自定义的 Triton 算子封装成 PyTorch 可识别的模块（Layer）
+- **实现 `backward` 函数是关键**：只有提供反向传播函数，自定义算子才能支持 PyTorch 的自动微分机制，从而无缝融入神经网络的训练流程（`loss.backward()` → 梯度计算 → 参数更新）
 
 ---
 
@@ -187,6 +222,15 @@ class LeNet5(nn.Module):
 | `tl.store(ptr + offsets, val, mask)` | `data[global_idx] = val` | 写入 Global Memory（自动合并） |
 | `tl.dot(a, b)` | Tensor Core MMA | 矩阵乘法，自动利用 Tensor Core |
 | `triton.cdiv(a, b)` | `(a + b - 1) / b` | 向上取整除法 |
+
+### Mask 与 Broadcast
+
+Triton 中两个重要的编程范式，课堂上重点强调：
+
+| 机制 | 作用 | 示例 |
+|------|------|------|
+| **Mask** | 边界检查，避免越界读写 | `mask = offsets < N`; `tl.load(ptr, mask=mask)` — 当数组长度不能被 BLOCK_SIZE 整除时，最后一个 Program 的部分线程需要被禁用 |
+| **Broadcast** | 维度扩展，实现外积/矩阵运算 | `a[:, None] * b[None, :]` — 将一维向量扩展为二维，实现列向量 × 行向量的矩阵乘法 |
 
 ### Autotune 参数含义
 
@@ -262,3 +306,13 @@ GPU Kernel 的启动是**异步**的——Host 端调用后立即返回，实际
 ### Q: `l7-lenet5.py` 中为什么 backward 不用 Triton？
 
 backward 的计算本质也是矩阵乘法（$grad\_x = grad\_out \times W$、$grad\_W = grad\_out^T \times x$），直接使用 PyTorch 的 `@` 运算即可获得 CuBLAS 优化的高性能。只有 forward 的线性层是"瓶颈算子"（因为我们要演示 Triton 的能力），backward 用 PyTorch 原生实现既简单又高效。
+
+---
+
+## 课后作业
+
+1. **阅读资料**：课后阅读 Triton 官方文档与算子融合（Operator Fusion）相关资料，了解多个算子合并为一个 Kernel 以减少 Global Memory 访问的技术
+2. **预习下节课**：下节课将讲解**算子融合**（如 Flash Attention 将 Softmax + Attention QKV 合并为单个 Kernel），思考以下问题：
+   - 为什么将多个连续算子融合为一个 Kernel 能提升性能？
+   - 算子融合与 Shared Memory 的关系是什么？
+   - Triton 中如何实现算子融合？

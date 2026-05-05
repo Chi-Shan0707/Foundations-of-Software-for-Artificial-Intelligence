@@ -1,0 +1,70 @@
+Step 1: torchdynamo start tracing forward /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:20
+TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward (MLP.forward)
+            x = x @ self.weight1 + self.bias1   # (B, H)
+TRACE LOAD_FAST x []
+TRACE LOAD_FAST self [LazyVariableTracker(unrealized: <class 'torch.Tensor'>)]
+TRACE LOAD_ATTR weight1 [LazyVariableTracker(unrealized: <class 'torch.Tensor'>), LazyVariableTracker(unrealized: <class '__main__.MLP'>)]
+wrap_to_fake L['self']._parameters['weight1'] (1, 64) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='weight1'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+create_graph_input L_self_parameters_weight1_ L['self']._parameters['weight1'] Parameter(FakeTensor(..., device='cuda:0', size=(1, 64), requires_grad=True)) at debug_level 0 before=False
+TRACE BINARY_MATRIX_MULTIPLY None [LazyVariableTracker(unrealized: <class 'torch.Tensor'>), LazyVariableTracker(realized: TensorVariable())]
+wrap_to_fake L['x'] (128, 1) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=LocalSource(local_name='x', is_input=True, dynamism=None, is_derefed_cell_contents=False), shape_env_to_source_to_symbol_cache={}) <class 'torch.Tensor'>
+create_graph_input L_x_ L['x'] FakeTensor(..., device='cuda:0', size=(128, 1)) at debug_level 0 before=False
+TRACE LOAD_FAST self [TensorVariable()]
+TRACE LOAD_ATTR bias1 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+wrap_to_fake L['self']._parameters['bias1'] (64,) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None], constraint_strides=[None], specialize_on=[[]], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='bias1'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+create_graph_input L_self_parameters_bias1_ L['self']._parameters['bias1'] Parameter(FakeTensor(..., device='cuda:0', size=(64,), requires_grad=True)) at debug_level 0 before=False
+TRACE BINARY_ADD None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+TRACE STORE_FAST x [TensorVariable()]
+TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward (MLP.forward)
+            x = torch.relu(x)
+TRACE LOAD_GLOBAL torch []
+TRACE LOAD_ATTR relu [LazyVariableTracker(unrealized: <class 'module'>)]
+TRACE LOAD_FAST x [LazyVariableTracker(unrealized: <class 'builtin_function_or_method'>)]
+TRACE CALL_FUNCTION 1 [LazyVariableTracker(unrealized: <class 'builtin_function_or_method'>), TensorVariable()]
+TRACE STORE_FAST x [TensorVariable()]
+TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward (MLP.forward)
+            x = x @ self.weight2 + self.bias2   # (B, 1)
+TRACE LOAD_FAST x []
+TRACE LOAD_FAST self [TensorVariable()]
+TRACE LOAD_ATTR weight2 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+wrap_to_fake L['self']._parameters['weight2'] (64, 1) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='weight2'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+create_graph_input L_self_parameters_weight2_ L['self']._parameters['weight2'] Parameter(FakeTensor(..., device='cuda:0', size=(64, 1), requires_grad=True)) at debug_level 0 before=False
+TRACE BINARY_MATRIX_MULTIPLY None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+TRACE LOAD_FAST self [TensorVariable()]
+TRACE LOAD_ATTR bias2 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+wrap_to_fake L['self']._parameters['bias2'] (1,) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None], constraint_strides=[None], specialize_on=[[]], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='bias2'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+create_graph_input L_self_parameters_bias2_ L['self']._parameters['bias2'] Parameter(FakeTensor(..., device='cuda:0', size=(1,), requires_grad=True)) at debug_level 0 before=False
+TRACE BINARY_ADD None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+TRACE STORE_FAST x [TensorVariable()]
+TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:24 in forward (MLP.forward)
+            return x
+TRACE LOAD_FAST x []
+TRACE RETURN_VALUE None [TensorVariable()]
+Step 1: torchdynamo done tracing forward (RETURN_VALUE)
+return triggered compile
+COMPILING GRAPH due to GraphCompileReason(reason='return_value', user_stack=[<FrameSummary file /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py, line 24 in forward>], graph_break=False)
+TRACED GRAPH
+ ===== __compiled_fn_1_02aee143_abef_4b24_8728_862994ad168b =====
+ /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/fx/_lazy_graph_module.py class GraphModule(torch.nn.Module):
+    def forward(self, L_self_parameters_weight1_: "f32[1, 64][64, 1]cuda:0", L_x_: "f32[128, 1][1, 1]cuda:0", L_self_parameters_bias1_: "f32[64][1]cuda:0", L_self_parameters_weight2_: "f32[64, 1][1, 1]cuda:0", L_self_parameters_bias2_: "f32[1][1]cuda:0"):
+        l_self_parameters_weight1_ = L_self_parameters_weight1_
+        l_x_ = L_x_
+        l_self_parameters_bias1_ = L_self_parameters_bias1_
+        l_self_parameters_weight2_ = L_self_parameters_weight2_
+        l_self_parameters_bias2_ = L_self_parameters_bias2_
+        
+        # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward, code: x = x @ self.weight1 + self.bias1   # (B, H)
+        matmul: "f32[128, 64][64, 1]cuda:0" = l_x_ @ l_self_parameters_weight1_;  l_x_ = l_self_parameters_weight1_ = None
+        x: "f32[128, 64][64, 1]cuda:0" = matmul + l_self_parameters_bias1_;  matmul = l_self_parameters_bias1_ = None
+        
+        # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward, code: x = torch.relu(x)
+        x_1: "f32[128, 64][64, 1]cuda:0" = torch.relu(x);  x = None
+        
+        # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward, code: x = x @ self.weight2 + self.bias2   # (B, 1)
+        matmul_1: "f32[128, 1][1, 1]cuda:0" = x_1 @ l_self_parameters_weight2_;  x_1 = l_self_parameters_weight2_ = None
+        x_2: "f32[128, 1][1, 1]cuda:0" = matmul_1 + l_self_parameters_bias2_;  matmul_1 = l_self_parameters_bias2_ = None
+        return (x_2,)
+        
+
+Step 2: calling compiler function inductor
+Step 2: done compiler function inductor

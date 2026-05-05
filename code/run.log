@@ -1,0 +1,310 @@
+I0505 14:23:43.325000 13899 site-packages/torch/_inductor/config.py:1027] compile_threads set to 20
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::bmm_dtype'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::_mm_plus_mm'', 'device_type=None', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::bmm'', 'device_type=None', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::_int_mm'', 'device_type=None', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::_scaled_mm'', 'device_type=None', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::mm_dtype'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenConfigHeuristics for 'template_name='aten::mm'', 'device_type=None', 'op_name=None'
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenAddMMConfigHeuristics for 'template_name='aten::baddbmm'', 'device_type=None', 'op_name='baddbmm''
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenAddMMConfigHeuristics for 'template_name='aten::addmm'', 'device_type=None', 'op_name='addmm''
+I0505 14:23:44.301000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: ATenBiasAddMMConfigHeuristics for 'template_name='aten::bias_addmm'', 'device_type=None', 'op_name='addmm''
+I0505 14:23:44.302000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: EmptyContiguousMMConfigHeuristics for 'template_name='contiguous_addmm'', 'device_type=None', 'op_name='addmm''
+I0505 14:23:44.302000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: EmptyContiguousMMConfigHeuristics for 'template_name='contiguous_mm'', 'device_type=None', 'op_name='mm''
+I0505 14:23:44.302000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: EmptyDecomposeKConfigHeuristics for 'template_name='decompose_k'', 'device_type=None', 'op_name='mm''
+I0505 14:23:44.303000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: DecomposeKConfigHeuristics for 'template_name='decompose_k'', 'device_type='cuda'', 'op_name='mm''
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAAddMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='cuda'', 'op_name='baddbmm''
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAAddMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cuda'', 'op_name='addmm''
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAMMAHTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cuda'', 'op_name='mm-ah''
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAPersistentTMATemplateConfigHeuristic for 'template_name='triton::mm_persistent_tma'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDABlackwellPersistentTMATemplateConfigHeuristic for 'template_name='triton::blackwell_ws_persistent_device_tma'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAAddmmPersistentTMATemplateConfigHeuristic for 'template_name='triton::mm_persistent_tma'', 'device_type='cuda'', 'op_name='addmm''
+I0505 14:23:44.306000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDABlackwellAddmmPersistentTMATemplateConfigHeuristic for 'template_name='triton::blackwell_ws_persistent_device_tma'', 'device_type='cuda'', 'op_name='addmm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAScaledMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cuda'', 'op_name='scaled_mm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAScaledTMAEpilogueScalingTemplateConfigHeuristic for 'template_name='triton::scaled_mm_device_tma_epilogue_scaling'', 'device_type='cuda'', 'op_name='scaled_mm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAScaledTMAMainLoopScalingTemplateConfigHeuristic for 'template_name='triton::scaled_mm_device_tma_main_loop_scaling'', 'device_type='cuda'', 'op_name='scaled_mm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAScaledBlackwellTMATemplateConfigHeuristic for 'template_name='triton::blackwell_ws_persistent_device_tma'', 'device_type='cuda'', 'op_name='scaled_mm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAMMPlusMMTemplateConfigHeuristic for 'template_name='triton::mm_plus_mm'', 'device_type='cuda'', 'op_name=None'
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CUDAInt8MMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cuda'', 'op_name='int_mm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='cpu'', 'op_name=None'
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cpu'', 'op_name=None'
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUAddmmTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='cpu'', 'op_name='baddbmm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUAddmmTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cpu'', 'op_name='addmm''
+I0505 14:23:44.307000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUScaledMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cpu'', 'op_name='scaled_mm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUInt8MMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='cpu'', 'op_name='int_mm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: CPUMMPlusMMTemplateConfigHeuristic for 'template_name='triton::mm_plus_mm'', 'device_type='cpu'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='xpu'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='xpu'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUAddmmTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='xpu'', 'op_name='baddbmm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUAddmmTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='xpu'', 'op_name='addmm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUPersistentTMATemplateConfigHeuristic for 'template_name='triton::mm_persistent_tma'', 'device_type='xpu'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUAddmmPersistentTMATemplateConfigHeuristic for 'template_name='triton::mm_persistent_tma'', 'device_type='xpu'', 'op_name='addmm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUScaledMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='xpu'', 'op_name='scaled_mm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUInt8MMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='xpu'', 'op_name='int_mm''
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: XPUMMPlusMMTemplateConfigHeuristic for 'template_name='triton::mm_plus_mm'', 'device_type='xpu'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='mtia'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='mtia'', 'op_name=None'
+I0505 14:23:44.308000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAAddMMTemplateConfigHeuristic for 'template_name='triton::bmm'', 'device_type='mtia'', 'op_name='baddbmm''
+I0505 14:23:44.309000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAAddMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='mtia'', 'op_name='addmm''
+I0505 14:23:44.309000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAScaledMMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='mtia'', 'op_name='scaled_mm''
+I0505 14:23:44.309000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAInt8MMTemplateConfigHeuristic for 'template_name='triton::mm'', 'device_type='mtia'', 'op_name='int_mm''
+I0505 14:23:44.309000 13899 site-packages/torch/_inductor/template_heuristics/registry.py:65] Registered template heuristic: MTIAMMPlusMMTemplateConfigHeuristic for 'template_name='triton::mm_plus_mm'', 'device_type='mtia'', 'op_name=None'
+V0505 14:23:44.411000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: _wrapped_call_impl (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/nn/modules/module.py)
+V0505 14:23:44.411000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: _call_impl (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/nn/modules/module.py)
+I0505 14:23:44.415000 13899 site-packages/torch/_dynamo/utils.py:1826] [0/0] ChromiumEventLogger initialized with id a26496fa-69ec-4bba-aa6d-4fe5a5cf6363
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0] torchdynamo start compiling forward /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:20, stack (elided 5 frames):
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py", line 55, in <module>
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     out = model(x)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 465, in __call__
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     return super().__call__(*args, **kwargs)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     return self._call_impl(*args, **kwargs)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     return forward_call(*args, **kwargs)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 953, in compile_wrapper
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     return fn(*args, **kwargs)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]   File "/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0]     return self._call_impl(*args, **kwargs)
+V0505 14:23:44.418000 13899 site-packages/torch/_dynamo/convert_frame.py:1715] [0/0] 
+I0505 14:23:44.419000 13899 site-packages/torch/_dynamo/symbolic_convert.py:4447] [0/0] Step 1: torchdynamo start tracing forward /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:20
+I0505 14:23:44.419000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:3876] [0/0] create_env
+V0505 14:23:44.428000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source] TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward (MLP.forward)
+V0505 14:23:44.428000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source]             x = x @ self.weight1 + self.bias1   # (B, H)
+V0505 14:23:44.434000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST x []
+V0505 14:23:44.434000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST self [LazyVariableTracker(unrealized: <class 'torch.Tensor'>)]
+V0505 14:23:44.434000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_ATTR weight1 [LazyVariableTracker(unrealized: <class 'torch.Tensor'>), LazyVariableTracker(unrealized: <class '__main__.MLP'>)]
+V0505 14:23:44.438000 13899 site-packages/torch/_dynamo/variables/builder.py:3687] [0/0] wrap_to_fake L['self']._parameters['weight1'] (1, 64) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='weight1'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+V0505 14:23:44.440000 13899 site-packages/torch/_dynamo/output_graph.py:3327] [0/0] create_graph_input L_self_parameters_weight1_ L['self']._parameters['weight1'] Parameter(FakeTensor(..., device='cuda:0', size=(1, 64), requires_grad=True)) at debug_level 0 before=False
+V0505 14:23:44.447000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE BINARY_MATRIX_MULTIPLY None [LazyVariableTracker(unrealized: <class 'torch.Tensor'>), LazyVariableTracker(realized: TensorVariable())]
+V0505 14:23:44.453000 13899 site-packages/torch/_dynamo/variables/builder.py:3687] [0/0] wrap_to_fake L['x'] (128, 1) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=LocalSource(local_name='x', is_input=True, dynamism=None, is_derefed_cell_contents=False), shape_env_to_source_to_symbol_cache={}) <class 'torch.Tensor'>
+V0505 14:23:44.454000 13899 site-packages/torch/_dynamo/output_graph.py:3327] [0/0] create_graph_input L_x_ L['x'] FakeTensor(..., device='cuda:0', size=(128, 1)) at debug_level 0 before=False
+V0505 14:23:44.462000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST self [TensorVariable()]
+V0505 14:23:44.462000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_ATTR bias1 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+V0505 14:23:44.462000 13899 site-packages/torch/_dynamo/variables/builder.py:3687] [0/0] wrap_to_fake L['self']._parameters['bias1'] (64,) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None], constraint_strides=[None], specialize_on=[[]], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='bias1'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+V0505 14:23:44.463000 13899 site-packages/torch/_dynamo/output_graph.py:3327] [0/0] create_graph_input L_self_parameters_bias1_ L['self']._parameters['bias1'] Parameter(FakeTensor(..., device='cuda:0', size=(64,), requires_grad=True)) at debug_level 0 before=False
+V0505 14:23:44.464000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE BINARY_ADD None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+V0505 14:23:44.470000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE STORE_FAST x [TensorVariable()]
+V0505 14:23:44.470000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source] TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward (MLP.forward)
+V0505 14:23:44.470000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source]             x = torch.relu(x)
+V0505 14:23:44.470000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_GLOBAL torch []
+V0505 14:23:44.471000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_ATTR relu [LazyVariableTracker(unrealized: <class 'module'>)]
+V0505 14:23:44.504000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST x [LazyVariableTracker(unrealized: <class 'builtin_function_or_method'>)]
+V0505 14:23:44.504000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE CALL_FUNCTION 1 [LazyVariableTracker(unrealized: <class 'builtin_function_or_method'>), TensorVariable()]
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE STORE_FAST x [TensorVariable()]
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source] TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward (MLP.forward)
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source]             x = x @ self.weight2 + self.bias2   # (B, 1)
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST x []
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST self [TensorVariable()]
+V0505 14:23:44.516000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_ATTR weight2 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+V0505 14:23:44.517000 13899 site-packages/torch/_dynamo/variables/builder.py:3687] [0/0] wrap_to_fake L['self']._parameters['weight2'] (64, 1) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>, <DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>, <DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None, None], constraint_strides=[None, None], specialize_on=[[], []], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='weight2'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+V0505 14:23:44.518000 13899 site-packages/torch/_dynamo/output_graph.py:3327] [0/0] create_graph_input L_self_parameters_weight2_ L['self']._parameters['weight2'] Parameter(FakeTensor(..., device='cuda:0', size=(64, 1), requires_grad=True)) at debug_level 0 before=False
+V0505 14:23:44.518000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE BINARY_MATRIX_MULTIPLY None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+V0505 14:23:44.520000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST self [TensorVariable()]
+V0505 14:23:44.520000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_ATTR bias2 [TensorVariable(), UnspecializedNNModuleVariable(MLP)]
+V0505 14:23:44.520000 13899 site-packages/torch/_dynamo/variables/builder.py:3687] [0/0] wrap_to_fake L['self']._parameters['bias2'] (1,) StatefulSymbolicContext(dynamic_sizes=[<DimDynamic.STATIC: 2>], dynamic_strides=[<DimDynamic.INFER_STRIDE: 4>], constraint_sizes=[None], constraint_strides=[None], specialize_on=[[]], view_base_context=None, tensor_source=DictGetItemSource(base=UnspecializedParamBufferSource(base=UnspecializedNNModuleSource(base=LocalSource(local_name='self', is_input=True, dynamism=None, is_derefed_cell_contents=False)), member='_parameters'), index='bias2'), shape_env_to_source_to_symbol_cache={}) <class 'torch.nn.parameter.Parameter'>
+V0505 14:23:44.521000 13899 site-packages/torch/_dynamo/output_graph.py:3327] [0/0] create_graph_input L_self_parameters_bias2_ L['self']._parameters['bias2'] Parameter(FakeTensor(..., device='cuda:0', size=(1,), requires_grad=True)) at debug_level 0 before=False
+V0505 14:23:44.522000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE BINARY_ADD None [TensorVariable(), LazyVariableTracker(realized: TensorVariable())]
+V0505 14:23:44.523000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE STORE_FAST x [TensorVariable()]
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source] TRACE starts_line /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:24 in forward (MLP.forward)
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1289] [0/0] [__trace_source]             return x
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE LOAD_FAST x []
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:1315] [0/0] [__trace_bytecode] TRACE RETURN_VALUE None [TensorVariable()]
+I0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:4669] [0/0] Step 1: torchdynamo done tracing forward (RETURN_VALUE)
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/symbolic_convert.py:4673] [0/0] return triggered compile
+V0505 14:23:44.524000 13899 site-packages/torch/_dynamo/output_graph.py:1467] [0/0] COMPILING GRAPH due to GraphCompileReason(reason='return_value', user_stack=[<FrameSummary file /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py, line 24 in forward>], graph_break=False)
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code] TRACED GRAPH
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]  ===== __compiled_fn_1_9b0a7533_accf_4a7c_a503_c57622acd964 =====
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]  /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/fx/_lazy_graph_module.py class GraphModule(torch.nn.Module):
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]     def forward(self, L_self_parameters_weight1_: "f32[1, 64][64, 1]cuda:0", L_x_: "f32[128, 1][1, 1]cuda:0", L_self_parameters_bias1_: "f32[64][1]cuda:0", L_self_parameters_weight2_: "f32[64, 1][1, 1]cuda:0", L_self_parameters_bias2_: "f32[1][1]cuda:0"):
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         l_self_parameters_weight1_ = L_self_parameters_weight1_
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         l_x_ = L_x_
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         l_self_parameters_bias1_ = L_self_parameters_bias1_
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         l_self_parameters_weight2_ = L_self_parameters_weight2_
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         l_self_parameters_bias2_ = L_self_parameters_bias2_
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward, code: x = x @ self.weight1 + self.bias1   # (B, H)
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         matmul: "f32[128, 64][64, 1]cuda:0" = l_x_ @ l_self_parameters_weight1_;  l_x_ = l_self_parameters_weight1_ = None
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         x: "f32[128, 64][64, 1]cuda:0" = matmul + l_self_parameters_bias1_;  matmul = l_self_parameters_bias1_ = None
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward, code: x = torch.relu(x)
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         x_1: "f32[128, 64][64, 1]cuda:0" = torch.relu(x);  x = None
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward, code: x = x @ self.weight2 + self.bias2   # (B, 1)
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         matmul_1: "f32[128, 1][1, 1]cuda:0" = x_1 @ l_self_parameters_weight2_;  x_1 = l_self_parameters_weight2_ = None
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         x_2: "f32[128, 1][1, 1]cuda:0" = matmul_1 + l_self_parameters_bias2_;  matmul_1 = l_self_parameters_bias2_ = None
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         return (x_2,)
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code]         
+V0505 14:23:44.528000 13899 site-packages/torch/_dynamo/output_graph.py:2184] [0/0] [__graph_code] 
+I0505 14:23:44.531000 13899 site-packages/torch/_dynamo/output_graph.py:2408] [0/0] Step 2: calling compiler function inductor
+I0505 14:23:44.531000 13899 site-packages/torch/_inductor/async_compile.py:258] [0/0] Creating 'subprocess' pool with 20 workers
+I0505 14:23:45.082000 13899 site-packages/torch/_inductor/compile_worker/subproc_pool.py:170] [0/0] Suppressing compile worker output due to config
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs] TRACED GRAPH
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]  ===== BEFORE PRE GRAD =====
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]  /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/fx/_lazy_graph_module.py class GraphModule(torch.nn.Module):
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]     def forward(self, L_self_parameters_weight1_: "f32[1, 64][64, 1]cuda:0", L_x_: "f32[128, 1][1, 1]cuda:0", L_self_parameters_bias1_: "f32[64][1]cuda:0", L_self_parameters_weight2_: "f32[64, 1][1, 1]cuda:0", L_self_parameters_bias2_: "f32[1][1]cuda:0"):
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         l_self_parameters_weight1_ = L_self_parameters_weight1_
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         l_x_ = L_x_
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         l_self_parameters_bias1_ = L_self_parameters_bias1_
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         l_self_parameters_weight2_ = L_self_parameters_weight2_
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         l_self_parameters_bias2_ = L_self_parameters_bias2_
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward, code: x = x @ self.weight1 + self.bias1   # (B, H)
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         matmul: "f32[128, 64][64, 1]cuda:0" = l_x_ @ l_self_parameters_weight1_;  l_x_ = l_self_parameters_weight1_ = None
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         x: "f32[128, 64][64, 1]cuda:0" = matmul + l_self_parameters_bias1_;  matmul = l_self_parameters_bias1_ = None
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward, code: x = torch.relu(x)
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         x_1: "f32[128, 64][64, 1]cuda:0" = torch.relu(x);  x = None
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         # File: /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward, code: x = x @ self.weight2 + self.bias2   # (B, 1)
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         matmul_1: "f32[128, 1][1, 1]cuda:0" = x_1 @ l_self_parameters_weight2_;  x_1 = l_self_parameters_weight2_ = None
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         x_2: "f32[128, 1][1, 1]cuda:0" = matmul_1 + l_self_parameters_bias2_;  matmul_1 = l_self_parameters_bias2_ = None
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         return (x_2,)
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs]         
+V0505 14:23:45.083000 13899 site-packages/torch/_inductor/compile_fx.py:2423] [0/0] [__pre_grad_graphs] 
+V0505 14:23:45.464000 13899 site-packages/torch/_inductor/triton_bundler.py:357] [0/0] Bailing out TritonBundler.read_and_emit, /tmp/torchinductor_chishan/triton/0/RGOJF4NXFUIQ4FTCPZMBEBRDAJEZRXT3THPXGFLRET3S5EHRRI7Q is non empty
+V0505 14:23:45.465000 13899 site-packages/torch/_inductor/triton_bundler.py:357] [0/0] Bailing out TritonBundler.read_and_emit, /tmp/torchinductor_chishan/triton/0/WOPYVXJ67WENQI3ERTZUJ6EGB5OSXEFEGSGMEISV7MXHLDWMIKKA is non empty
+I0505 14:23:45.465000 13899 site-packages/torch/_inductor/triton_bundler.py:219] [0/0] Loading 1 statically launchable autotuners
+I0505 14:23:45.524000 13899 site-packages/torch/_inductor/codecache.py:1574] [0/0] fx graph cache hit for key fra6anslpxgmaedqlbmwxtiukktqmmw3j4r2czcpl7rxfzffwcip
+V0505 14:23:45.526000 13899 site-packages/torch/_inductor/triton_bundler.py:357] [0/0] Bailing out TritonBundler.read_and_emit, /tmp/torchinductor_chishan/triton/0/LGTQAXZJHMC7NB3JRHYA2K3PSTV6P3OCWEZGC5KXGJQP262FNMQA is non empty
+V0505 14:23:45.526000 13899 site-packages/torch/_inductor/triton_bundler.py:357] [0/0] Bailing out TritonBundler.read_and_emit, /tmp/torchinductor_chishan/triton/0/Z7KZE2PXP7YPRS65XFTFR7JIG7GIPQCLHYLLXMXX2VUQSQO7NGRA is non empty
+I0505 14:23:45.527000 13899 site-packages/torch/_inductor/triton_bundler.py:219] [0/0] Loading 2 statically launchable autotuners
+I0505 14:23:45.530000 13899 site-packages/torch/_inductor/codecache.py:1574] [0/0] fx graph cache hit for key fuut7meafevgzvibtmsk7h364eqxukbj4shlukzeb5thjvo2bgtv
+I0505 14:23:45.531000 13899 site-packages/torch/_dynamo/output_graph.py:2413] [0/0] Step 2: done compiler function inductor
+I0505 14:23:45.535000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5353] [0/0] produce_guards
+V0505 14:23:45.536000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight1'].size()[0] 1 None
+V0505 14:23:45.537000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight1'].size()[1] 64 None
+V0505 14:23:45.537000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight1'].stride()[0] 64 None
+V0505 14:23:45.543000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight1'].stride()[1] 1 None
+V0505 14:23:45.545000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight1'].storage_offset() 0 None
+V0505 14:23:45.545000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['x'].size()[0] 128 None
+V0505 14:23:45.545000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['x'].size()[1] 1 None
+V0505 14:23:45.545000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['x'].stride()[0] 1 None
+V0505 14:23:45.545000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['x'].stride()[1] 1 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['x'].storage_offset() 0 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias1'].size()[0] 64 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias1'].stride()[0] 1 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias1'].storage_offset() 0 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight2'].size()[0] 64 None
+V0505 14:23:45.546000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight2'].size()[1] 1 None
+V0505 14:23:45.547000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight2'].stride()[0] 1 None
+V0505 14:23:45.547000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight2'].stride()[1] 1 None
+V0505 14:23:45.547000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['weight2'].storage_offset() 0 None
+V0505 14:23:45.547000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias2'].size()[0] 1 None
+V0505 14:23:45.547000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias2'].stride()[0] 1 None
+V0505 14:23:45.548000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5579] [0/0] track_symint L['self']._parameters['bias2'].storage_offset() 0 None
+V0505 14:23:45.548000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight1'].size()[0] == 1
+V0505 14:23:45.548000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight1'].size()[1] == 64
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight1'].stride()[0] == 64
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight1'].stride()[1] == 1
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight1'].storage_offset() == 0
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['x'].size()[0] == 128
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['x'].size()[1] == 1
+V0505 14:23:45.549000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['x'].stride()[0] == 1
+V0505 14:23:45.550000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['x'].stride()[1] == 1
+V0505 14:23:45.550000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['x'].storage_offset() == 0
+V0505 14:23:45.550000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias1'].size()[0] == 64
+V0505 14:23:45.550000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias1'].stride()[0] == 1
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias1'].storage_offset() == 0
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight2'].size()[0] == 64
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight2'].size()[1] == 1
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight2'].stride()[0] == 1
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight2'].stride()[1] == 1
+V0505 14:23:45.551000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['weight2'].storage_offset() == 0
+V0505 14:23:45.552000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias2'].size()[0] == 1
+V0505 14:23:45.552000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias2'].stride()[0] == 1
+V0505 14:23:45.552000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:5800] [0/0] Skipping guard L['self']._parameters['bias2'].storage_offset() == 0
+V0505 14:23:45.553000 13899 site-packages/torch/_dynamo/guards.py:4004] [0/0] [__guards] GUARDS:
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] 
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] TREE_GUARD_MANAGER:
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] +- RootGuardManager
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- LAMBDA_GUARD: torch._functorch.aot_autograd.utils.top_saved_tensors_hooks ids == None  # _dynamo/output_graph.py:807 in init_ambient_guards
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- GLOBAL_STATE: ___check_global_state()
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- TORCH_FUNCTION_MODE_STACK: ___check_torch_function_mode_stack()
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- DEFAULT_DEVICE: utils_device.CURRENT_DEVICE == None                           # _dynamo/output_graph.py:794 in init_ambient_guards
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- GuardManager: source=L['x'], accessed_by=FrameLocalsGuardAccessor(key='x', framelocals_idx=1), type=<class 'torch.Tensor'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | +- TENSOR_MATCH: check_tensor(L['x'], Tensor, DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutogradCUDA), torch.float32, device=0, requires_grad=False, size=[128, 1], stride=[1, 1])  # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | +- NO_HASATTR: hasattr(L['x'], '_dynamo_dynamic_indices') == False           # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- GuardManager: source=G, accessed_by=GlobalsGuardAccessor, type=<class 'dict'>, tag_safe=(False, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | +- GuardManager: source=G['torch'], accessed_by=DictGetItemGuardAccessor('torch'), type=<class 'module'>, tag_safe=(False, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | +- ID_MATCH: ___check_obj_id(G['torch'], 139997466924336), type=<module 'torch' from '/home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/__init__.py'>  # x = torch.relu(x)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | +- GuardManager: source=G['torch'].relu, accessed_by=GetAttrGuardAccessor(relu), type=<class 'builtin_function_or_method'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- ID_MATCH: ___check_obj_id(G['torch'].relu, 139997461450960), type=<built-in method relu of type object at 0x7f52ecad1920>  # x = torch.relu(x)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:22 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | +- GuardManager: source=L['self'], accessed_by=FrameLocalsGuardAccessor(key='self', framelocals_idx=0), type=<class '__main__.MLP'>, tag_safe=(True, True)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | +- TYPE_MATCH: ___check_type_id(L['self'], 211770416), type=<class '__main__.MLP'>  # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | +- GuardManager: source=L['self'].__dict__, accessed_by=GetGenericDictGuardAccessor, type=<class 'dict'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | +- GuardManager: source=L['self']._parameters, accessed_by=DictGetItemGuardAccessor('_parameters'), type=<class 'dict'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- TYPE_MATCH: ___check_type_id(L['self']._parameters, 7646624), type=<class 'dict'>  # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- GuardManager: source=L['self']._parameters['bias1'], accessed_by=DictGetItemGuardAccessor('bias1'), type=<class 'torch.nn.parameter.Parameter'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | | +- TENSOR_MATCH: check_tensor(L['self']._parameters['bias1'], Parameter, DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutogradCUDA), torch.float32, device=0, requires_grad=True, size=[64], stride=[1])  # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- GuardManager: source=L['self']._parameters['bias2'], accessed_by=DictGetItemGuardAccessor('bias2'), type=<class 'torch.nn.parameter.Parameter'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | | +- TENSOR_MATCH: check_tensor(L['self']._parameters['bias2'], Parameter, DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutogradCUDA), torch.float32, device=0, requires_grad=True, size=[1], stride=[1])  # x = x @ self.weight2 + self.bias2   # (B, 1)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- GuardManager: source=L['self']._parameters['weight1'], accessed_by=DictGetItemGuardAccessor('weight1'), type=<class 'torch.nn.parameter.Parameter'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | | +- TENSOR_MATCH: check_tensor(L['self']._parameters['weight1'], Parameter, DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutogradCUDA), torch.float32, device=0, requires_grad=True, size=[1, 64], stride=[64, 1])  # x = x @ self.weight1 + self.bias1   # (B, H)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:21 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | +- GuardManager: source=L['self']._parameters['weight2'], accessed_by=DictGetItemGuardAccessor('weight2'), type=<class 'torch.nn.parameter.Parameter'>, tag_safe=(True, False)
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] | | | | | +- TENSOR_MATCH: check_tensor(L['self']._parameters['weight2'], Parameter, DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutogradCUDA), torch.float32, device=0, requires_grad=True, size=[64, 1], stride=[1, 1])  # x = x @ self.weight2 + self.bias2   # (B, 1)  # nt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:23 in forward
+V0505 14:23:45.559000 13899 site-packages/torch/_dynamo/guards.py:3712] [0/0] [__guards] 
+V0505 14:23:45.639000 13899 site-packages/torch/_dynamo/guards.py:3748] [0/0] [__guards] Guard eval latency = 60.44 us
+I0505 14:23:45.640000 13899 site-packages/torch/_dynamo/pgo.py:900] [0/0] put_code_state: no cache key, skipping
+I0505 14:23:45.640000 13899 site-packages/torch/_dynamo/convert_frame.py:1826] [0/0] run_gc_after_compile: running gc
+V0505 14:23:45.644000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: inner (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_compile.py)
+V0505 14:23:45.644000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: disable (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/decorators.py)
+V0505 14:23:45.644000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: innermost_fn (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+V0505 14:23:45.644000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: __init__ (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+V0505 14:23:45.644000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: __init__ (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+V0505 14:23:45.645000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: nothing (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+V0505 14:23:45.645000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: __call__ (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+V0505 14:23:45.645000 13899 site-packages/torch/_dynamo/convert_frame.py:2160] skipping: _fn (reason: in skipfiles, file: /home/chishan/miniconda3/envs/qwenenv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py)
+step 0, loss = 64.542183
+step 50, loss = 1.160714
+step 100, loss = 0.449313
+step 150, loss = 0.193840
+step 200, loss = 0.154057
+step 250, loss = 0.124535
+step 300, loss = 0.069759
+step 350, loss = 0.077342
+step 400, loss = 0.058655
+step 450, loss = 0.051474
+done
+I0505 14:23:48.465000 13899 site-packages/torch/_inductor/remote_cache.py:432] Cache Metrics:
+I0505 14:23:48.465000 13899 site-packages/torch/_inductor/remote_cache.py:432]   LocalAutotuneCache: {hit: 1, miss: 0, put: 0, exception: 0}
+I0505 14:23:48.465000 13899 site-packages/torch/_inductor/remote_cache.py:432]   backend:_LocalAutotuneCacheBackend: {hit: 1, miss: 0, put: 0, exception: 0}
+I0505 14:23:48.465000 13899 site-packages/torch/_inductor/remote_cache.py:432] 
+I0505 14:23:48.465000 13899 site-packages/torch/_dynamo/eval_frame.py:666] TorchDynamo attempted to trace the following frames: [
+I0505 14:23:48.465000 13899 site-packages/torch/_dynamo/eval_frame.py:666]   * forward /mnt/d/FudanUniversity/Fdu1/Foundations of Software for Artificial Intelligence/code/l8-mlp.py:20
+I0505 14:23:48.465000 13899 site-packages/torch/_dynamo/eval_frame.py:666] ]
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] TorchDynamo compilation metrics:
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] Function, Runtimes (s)
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] _compile.compile_inner, 1.2264
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] compile_attempt_0, 1.1140
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] bytecode_tracing, 0.0966
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] OutputGraph.call_user_compiler, 1.0003
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] inductor_codecache_torch_key, 0.5499
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] _recursive_pre_grad_passes, 0.0049
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] AOTAutogradCache.inductor_load, 0.0672
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] TritonBundler.read_and_emit, 0.0028
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] TritonBundler.load_cached_static_autotuners, 0.0005
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] PyCodeCache.load_by_key_path, 0.0105
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] StaticAutotunerFuture.warm_precompile, 0.0029
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] CachingAutotuner.synchronize, 0.0003
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] async_compile.wait, 0.0016
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] build_guards, 0.1071
+I0505 14:23:48.466000 13899 site-packages/torch/_dynamo/utils.py:860] gc, 0.0014
+V0505 14:23:48.466000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats constrain_symbol_range: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.466000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats guard_or_defer_runtime_assert: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.466000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _inner_evaluate_expr: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.466000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _simplify_floor_div: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _maybe_guard_rel: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _find: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats has_hint: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats size_hint: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats simplify: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _update_divisible: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats replace: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _maybe_evaluate_static: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats get_implications: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats get_axioms: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats _maybe_evaluate_static_worker: CacheInfo(hits=0, misses=0, maxsize=None, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats safe_expand: CacheInfo(hits=0, misses=0, maxsize=256, currsize=0)
+V0505 14:23:48.467000 13899 site-packages/torch/fx/experimental/symbolic_shapes.py:186] lru_cache_stats uninteresting_files: CacheInfo(hits=9, misses=1, maxsize=None, currsize=1)

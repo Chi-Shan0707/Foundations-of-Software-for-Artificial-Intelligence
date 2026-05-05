@@ -11,7 +11,10 @@
   Understand the roles of the **AST (Abstract Syntax Tree)**, **bytecode**, and the **Python Virtual Machine (PVM)**.
 
 * 能够借助工具查看 Python 代码在不同阶段的表示形式。
-  Be able to inspect Python code at different stages using built-in tools. 
+  Be able to inspect Python code at different stages using built-in tools.
+
+* 理解 **Python 语言**、**CPython 解释器** 与 **.ipynb 笔记本**三者的关系和区别。
+  Understand the relationship and distinction between **Python (language)**, **CPython (interpreter)**, and **.ipynb (Jupyter Notebook)**.
 
 ---
 
@@ -51,6 +54,94 @@
 
 * 在人工智能和数据科学中，Python 之所以重要，很大程度上是因为它拥有丰富生态：如 NumPy、Pandas、Matplotlib、Scikit-learn、PyTorch 等。
   Python is central to AI and data science largely because of its rich ecosystem: NumPy, Pandas, Matplotlib, Scikit-learn, PyTorch, and more. 
+
+---
+
+## 2.1 Python、CPython 与 Jupyter Notebook 的关系 / Python, CPython, and Jupyter Notebook
+
+在正式讲解执行流程之前，需要先厘清三个经常被混淆的概念：
+
+Before diving into the execution pipeline, let's clarify three frequently confused concepts:
+
+```text
+Python  = 一门语言（Language）          — 定义语法规则
+CPython = 这门语言的解释器实现（Interpreter） — 负责解析、编译、执行
+.ipynb  = Jupyter Notebook 的文件格式  — 交互式笔记本，不是解释器
+```
+
+### Python 是"语言"
+
+Python 指的是一套语言规范——语法、变量、函数、类、模块、异常机制等。类似于"中文/英文"这种语言规则。
+
+```python
+x = 1
+print(x + 2)
+```
+
+这些语法规则属于 **Python 语言本身**，与具体用什么程序来执行它无关。
+
+### CPython 是"执行 Python 的程序"
+
+CPython 是最主流的 Python 实现。你在终端输入：
+
+```bash
+python main.py
+```
+
+大概率启动的就是 CPython。它的内部流程正是下一节要讲的：
+
+```text
+Python 源代码 → 词法分析 / 语法分析 → AST → 编译成字节码 → Python 虚拟机执行
+```
+
+可以类比：
+
+```text
+C 语言 ≠ GCC 编译器
+Python 语言 ≠ CPython 解释器
+```
+
+除了 CPython，还有 PyPy、Jython、IronPython、MicroPython 等实现，但主流科研和工程（NumPy、PyTorch、Jupyter）中默认就是 CPython。
+
+### `.ipynb` 是 Notebook 文件，不是解释器
+
+`.ipynb` 是一个 JSON 文件，里面保存的是：
+
+```text
+代码 cell、Markdown cell、运行输出、图片、metadata、kernel 信息
+```
+
+当你在 Jupyter Notebook 中点"运行"时，实际发生的过程是：
+
+```text
+浏览器中的 Jupyter 前端
+    ↓ 发送代码
+Jupyter Python kernel（ipykernel）
+    ↓ 调用
+CPython 解释器
+    ↓ 解析 → AST → 字节码 → 虚拟机执行
+运行结果
+    ↑ 返回
+Jupyter 前端显示在 notebook 中
+```
+
+所以 `.ipynb` 更像一个"交互式实验记录本"，真正的执行者仍然是 CPython。
+
+### `.py` 与 `.ipynb` 的关键区别
+
+| 维度 / Aspect | `.py` | `.ipynb` |
+|:--|:--|:--|
+| 本质 / Nature | 普通 Python 源文件 | JSON 格式的笔记本文件 |
+| 执行方式 / Execution | 从上到下顺序执行 | 按 cell 逐格执行，可乱序 |
+| 状态一致性 / State | 文件顺序 = 执行顺序 | 当前内存状态可能与文件顺序不一致 |
+
+> **Notebook 的常见坑**：如果你先运行了 cell 2（`x + 1`），再运行 cell 1（`x = 10`），不会报错——但如果你重启 kernel 后只运行 cell 2，就会因为 `x` 未定义而报错。这是 notebook 的"状态与顺序不一致"问题，`.py` 文件不存在这个问题。
+
+**一句话总结**：
+
+```text
+你写的是 Python，通常由 CPython 执行，在 Jupyter 里保存成 .ipynb。
+```
 
 ---
 
@@ -518,12 +609,19 @@ The AST is not the full runtime state of the program
 AST 只描述结构；运行时还涉及名字绑定、栈、frame、函数对象、返回值等。
 The AST only describes structure; runtime also involves name binding, stacks, frames, function objects, return values, and more.
 
-### 12.3 三引号不等于“真正的多行注释”
+### 12.3 三引号不等于”真正的多行注释”
 
 Triple quotes do not mean “true multi-line comments”
 
 三引号本质上还是字符串字面量。
-Triple quotes are still string literals in essence. 
+Triple quotes are still string literals in essence.
+
+### 12.4 Python ≠ CPython，.ipynb ≠ Python 解释器
+
+Python ≠ CPython, .ipynb ≠ Python interpreter
+
+- **Python** 是语言规范，**CPython** 是最常用的解释器实现（类比 C 语言 ≠ GCC）。
+- **`.ipynb`** 是 Jupyter 的笔记本文件格式，代码最终仍由 CPython 执行，.ipynb 本身不是解释器。
 
 ---
 
