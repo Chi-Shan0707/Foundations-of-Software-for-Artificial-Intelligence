@@ -1,6 +1,6 @@
 复旦大学 25300180035 池裕涵
 
-代码仓库：https://github.com/Chi-Shan0707/Foundations-of-Software-for-Artificial-Intelligence/tree/study/yhchi/homework/hw2
+代码仓库：https://github.com/Chi-Shan0707/Foundations-of-Software-for-Artificial-Intelligence/tree/study/yhchi/homework/hw2/IO-AwareAttention
 
 # 1. 项目概览
 
