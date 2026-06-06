@@ -30,6 +30,15 @@ dist/
 .claude/
 /.vscode/
 
+# Environment variables
+.env
+
 # OS files
 .DS_Store
 Thumbs.db
+
+# study/ - only push README.md from each lec directory
+study/lec*/
+!study/lec*/
+study/lec*/*
+!study/lec*/README.md

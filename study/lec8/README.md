@@ -1,6 +1,6 @@
 # L8: PyTorch 计算图优化、日志与调试产物
 
-> 本节整理本次关于 `torch.compile`、`TORCH_LOGS`、`TORCH_COMPILE_DEBUG`、`Not enough SMs to use max_autotune_gemm mode` 的完整讨论，并结合 [code/l8-mlp.py](../../code/l8-mlp.py) 说明：一个简单的 MLP 是如何被 TorchDynamo 捕获为计算图，再交给 TorchInductor 做算子融合、kernel 生成与 autotune 的。
+> `torch.compile` 编译流程：TorchDynamo 捕获计算图 → TorchInductor 做算子融合、kernel 生成与 autotune。围绕 [code/l8-mlp.py](../../code/l8-mlp.py) 拆解日志与调试产物。
 
 ---
 
@@ -27,7 +27,7 @@
 3. **图与算子（IR）**：如何通过 `TORCH_COMPILE_DEBUG` 获取“人类可读”的图优化和算子融合过程。
 4. **底层 Kernel**：最终下发给 GPU 的那个叫作 `output_code.py` 的 Triton 算子代码长什么样，以及它为什么快。
 
-以下我们从代码例子开始，带你拆解这个黑盒。
+从代码例子开始，拆解这个编译流程。
 
 ---
 
@@ -118,7 +118,7 @@ print("done")
 ```bash
 TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python l8-mlp.py
 ```
-这短短的四五十行代码就会在后台掀起一场“图捕获 -> 图优化 -> 代码生成 (Triton) -> 编译为 .cubin 二进制”的渲染大戏。接下来我们就开始顺藤摸瓜。
+这四五十行代码在后台执行的是：图捕获 → 图优化 → 代码生成 (Triton) → 编译为 .cubin 二进制。
 
 ---
 
@@ -616,13 +616,13 @@ graph LR
 
 ## 12. 本次实战的宏观总结
 
-### 🗂️ 1. 我们解决了那些常见的困惑？
-- **“Warning != Error”**：`Not enough SMs` 仅仅是 Inductor 的策略提示，表明小规模矩阵不配开启高昂开销的极致调优。
-- **“被隐藏的代码”**：Torch 编译器其实在背后写代码，我们学会了用 `TORCH_COMPILE_DEBUG=1` 把它们逼到前台抓现行。
-- **缓存重用机制**：Inductor 不会做无用功。一旦 Graph 是确定的，生成的 Python Wrapper 和 Triton Kernel 会直接放到 Cache 里并跳过重编译。
+### 1. 常见困惑
+- **Warning != Error**：`Not enough SMs` 是 Inductor 的策略提示，小规模矩阵不值得开启高开销的极致调优。
+- **被隐藏的代码**：Torch 编译器在后台生成代码，通过 `TORCH_COMPILE_DEBUG=1` 可以查看。
+- **缓存重用**：Graph 确定后，生成的 Python Wrapper 和 Triton Kernel 会进入 Cache，跳过重编译。
 
-### 🚀 2. 算子融合 (Operator Fusion) 对 AI 底层的意义
-从 `output_code` 我们窥见了编译优化的杀手锏。算子融合并非改变了数学公式，而是在玩一个**“尽量让数据只待在寄存器里，少去 Global Memory 洗澡”**的游戏。对于现代显存带宽受限（Memory Bound）的 GPU 计算，这通常比单纯提高算力具有更大的边际收益。这，也就是 Triton 让深度学习性能起飞的核心武器之一。
+### 2. 算子融合 (Operator Fusion) 的意义
+算子融合不改变数学公式，核心是减少 Global Memory 的读写次数，让中间结果尽量留在寄存器里。对显存带宽受限（Memory Bound）的 GPU 计算，这比单纯提高算力收益更大。
 
 ### 8.1 对“日志怎么看”的结论
 
@@ -681,3 +681,205 @@ TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python3 l8-mlp.py 2>&1 | te
 - `code/torch_compile_debug/run_2026_05_05_14_25_21_889084-pid_14363/torchinductor/`
 
 如果后续再跑一次，目录名里的时间戳和 pid 会变化，但结构基本不变。
+
+---
+
+## 13. 补充：预热、cuBLAS 与 Autotune 搜索机制
+
+### 13.1 预热（Warmup）
+
+**什么是预热**：第一次运行时，GPU 需要初始化 CUDA context、加载 kernel、分配显存，导致第一次特别慢。
+
+```python
+# 典型的 benchmark 模式
+for _ in range(warmup):      # 预热阶段：不计时
+    output = model(input)
+
+torch.cuda.synchronize()
+start = time.time()
+for _ in range(repeats):     # 正式计时
+    output = model(input)
+torch.cuda.synchronize()
+end = time.time()
+```
+
+**为什么需要预热**：
+- CUDA context 初始化：首次调用 CUDA API 时，驱动需要初始化
+- Kernel 编译：Triton JIT 编译发生在首次调用时
+- 显存分配：首次分配显存有额外开销
+- 缓存预热：L2 cache、TLB 需要预热
+
+**torch.compile 的预热**：
+```python
+model = torch.compile(model)
+
+# 第一次调用：触发编译 + 预热（慢）
+output = model(input)
+
+# 后续调用：直接用编译好的 kernel（快）
+output = model(input)
+```
+
+### 13.2 cuBLAS
+
+**什么是 cuBLAS**：NVIDIA 官方的 BLAS（Basic Linear Algebra Subprograms）库，提供高度优化的矩阵运算。
+
+**cuBLAS vs 手写 CUDA**：
+
+| 方面 | cuBLAS | 手写 CUDA |
+|------|--------|----------|
+| 性能 | 接近硬件极限 | 取决于实现 |
+| 易用性 | API 调用 | 需要写 kernel |
+| 灵活性 | 固定接口 | 完全可控 |
+| 适用场景 | 标准矩阵运算 | 自定义算子 |
+
+**cuBLAS 在 PyTorch 中的使用**：
+```python
+# PyTorch 底层自动调用 cuBLAS
+torch.mm(A, B)        # 矩阵乘法
+torch.matmul(A, B)    # 批量矩阵乘法
+F.linear(x, weight)   # 线性层 = matmul + bias
+```
+
+**cuBLASLt**：cuBLAS 的轻量级版本，支持更多定制化配置
+- 可以指定算法选择
+- 支持融合 epilogue（如 matmul + bias + relu）
+- 更适合 autotune 场景
+
+### 13.3 Autotune 搜索范围与方式
+
+**搜索的参数**：
+```python
+# GEMM 相关
+BLOCK_SIZE_M: 64, 128, 256      # 矩阵分块大小
+BLOCK_SIZE_N: 64, 128, 256
+BLOCK_SIZE_K: 32, 64, 128
+num_warps: 2, 4, 8              # warp 数量
+num_stages: 2, 3, 4             # 流水线阶段数
+
+# Pointwise 相关
+XBLOCK: 64, 128, 256, 512, 1024
+num_warps: 2, 4, 8
+```
+
+**搜索方式**：
+
+#### 方式 1：Grid Search（网格搜索）
+```python
+# 遍历所有组合
+for bm in [64, 128, 256]:
+    for bn in [64, 128, 256]:
+        for bk in [32, 64, 128]:
+            for nw in [2, 4, 8]:
+                config = (bm, bn, bk, nw)
+                time = benchmark(config)
+                # 记录最优
+```
+- 优点：保证找到最优
+- 缺点：组合爆炸，耗时长
+
+#### 方式 2：Beam Search（束搜索）
+```python
+# 先粗搜，再细搜
+configs_level1 = [(64,64,32), (128,128,64), (256,256,128)]
+best_l1 = benchmark_and_select(configs_level1)
+
+# 在最优配置附近细搜
+configs_level2 = perturb(best_l1, radius=1)
+best_l2 = benchmark_and_select(configs_level2)
+```
+- 优点：搜索效率高
+- 缺点：可能错过全局最优
+
+#### 方式 3：Bayesian Optimization（贝叶斯优化）
+```python
+# 用概率模型指导搜索
+optimizer = BayesianOptimizer(search_space)
+for _ in range(num_trials):
+    config = optimizer.suggest()
+    time = benchmark(config)
+    optimizer.observe(config, time)
+```
+- 优点：样本效率高
+- 缺点：实现复杂
+
+**Triton 的 autotune 实现**：
+```python
+@triton.autotune(
+    configs=[
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 64}, num_warps=8, num_stages=3),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 256, 'BLOCK_K': 32}, num_warps=4, num_stages=2),
+        # ... 更多配置
+    ],
+    key=['M', 'N', 'K'],  # 根据矩阵形状选择配置
+    # 搜索方式：默认是 benchmark 所有配置
+)
+def matmul_kernel(...):
+    ...
+```
+
+**torch.compile 中的 autotune 模式**：
+```python
+# mode="default"：保守策略，快速编译
+model = torch.compile(model, mode="default")
+
+# mode="max-autotune"：激进搜索，追求极致性能
+model = torch.compile(model, mode="max-autotune")
+```
+
+**max-autotune 的额外搜索**：
+- 会尝试更多 GEMM 算法（来自 cuBLAS/cuBLASLt）
+- 会尝试更多 Triton kernel 配置
+- 编译时间更长，但运行时可能更快
+
+**Not enough SMs 警告**：
+```
+Not enough SMs to use max_autotune_gemm mode
+```
+- 当 GPU SM 数量不足或矩阵太小时触发
+- 编译器自动降级到保守策略
+- 不是错误，是策略选择
+
+### 13.4 实际 Benchmark 示例
+
+```python
+import torch
+import time
+
+def benchmark_fn(fn, input, warmup=5, repeats=100):
+    # 预热
+    for _ in range(warmup):
+        fn(input)
+    torch.cuda.synchronize()
+    
+    # 计时
+    start = time.time()
+    for _ in range(repeats):
+        fn(input)
+    torch.cuda.synchronize()
+    end = time.time()
+    
+    return (end - start) / repeats * 1000  # ms
+
+# 对比不同配置
+input = torch.randn(128, 64, device='cuda')
+
+# 1. 朴素实现
+def naive(x):
+    return torch.mm(x, weight) + bias
+
+# 2. compile default
+model_default = torch.compile(model, mode="default")
+
+# 3. compile max-autotune
+model_max = torch.compile(model, mode="max-autotune")
+
+# Benchmark
+time_naive = benchmark_fn(naive, input)
+time_default = benchmark_fn(model_default, input)
+time_max = benchmark_fn(model_max, input)
+
+print(f"Naive: {time_naive:.3f} ms")
+print(f"Default: {time_default:.3f} ms")
+print(f"Max-autotune: {time_max:.3f} ms")
+```

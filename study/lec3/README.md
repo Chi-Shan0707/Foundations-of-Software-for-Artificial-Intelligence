@@ -1,6 +1,6 @@
 # L3: Python 与 Native 交互
 
-> 本节课核心：理解 Python 性能瓶颈，以及如何通过调用 Native 代码加速计算。
+> Python 性能瓶颈与通过 Native 代码加速计算。
 
 ---
 
