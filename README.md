@@ -2,6 +2,8 @@
 
 - **教室**：H2201
 - **时间**：周六下午1:30pm-4:10pm
+- **教师**：[徐辉](https://hxuhack.github.io/)
+- **[课件合集](notes/人工智能的软件基础v0.9.pdf)**
 
 | 周 | 内容 | 资料 | 代码 |
 |---|---|---|---|
@@ -17,7 +19,7 @@
 | 10 | 课程小结与研讨 | |
 | 11 | 大语言模型 | [课件](notes/L9-大语言模型.pdf) | [train](code/l9-train.py), [test](code/l9-test.py) | 
 | 12 | 大模型训练 | [课件](notes/L10-大模型训练.pdf) | [lenet5_ddp](code/l10-lenet5_ddp.py), [llama_lora](code/l10-llama_lora.py) | 
-| 13 | 大模型推理系统与性能优化 | | | 
-| 14 | 大模型应用 | | | 
+| 13 | 大模型推理系统与性能优化 | [课件](notes/L11-大模型推理.pdf) | [kaggle-vllm](code/l11-kaggle-vllm.ipynb) | 
+| 14 | 大模型应用 | [课件](notes/L12-智能体.pdf) | [kaggle-vllm](code/l12-cli-agent.py) | 
 | 15 | 课程小结与研讨 | | | 
 | 16 | 期末考试 | | | 
