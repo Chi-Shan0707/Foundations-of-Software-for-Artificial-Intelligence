@@ -1,315 +1,156 @@
-# L8: PyTorch 计算图优化、日志与调试产物
+# L8: 算子融合与 PyTorch 计算图优化
 
-> `torch.compile` 编译流程：TorchDynamo 捕获计算图 → TorchInductor 做算子融合、kernel 生成与 autotune。围绕 [code/l8-mlp.py](../../code/l8-mlp.py) 拆解日志与调试产物。
+> 本讲围绕 PyTorch 2.x 的 `torch.compile` 编译流程，分析算子融合（Operator Fusion）的原理及其在 GPU 上的实现。核心组件链路为：**TorchDynamo 捕获计算图 → AOTAutograd 拆分前后向 → TorchInductor 做算子融合并生成 Triton Kernel**。配套实验代码见 [lec8-mlp.py](lec8-mlp.py)（仓库根目录对应 [code/l8-mlp.py](../../code/l8-mlp.py)）。
 
 ---
 
 ## 目录
 
-1. [本次对话的主线](#1-本次对话的主线)
-2. [程序要点：`code/l8-mlp.py`](#2-程序要点codel8-mlppy)
-3. [日志怎么开、怎么读](#3-日志怎么开怎么读)
-4. [调试产物与“人类可读”结果](#4-调试产物与人类可读结果)
-5. [警告信息：`Not enough SMs to use max_autotune_gemm mode`](#5-警告信息not-enough-sms-to-use-max_autotune_gemm-mode)
-6. [背后的计算图优化流程](#6-背后的计算图优化流程)
-7. [关键知识点总结](#7-关键知识点总结)
-8. [本次实战的最终结论](#8-本次实战的最终结论)
+1. [算子融合的动机：访存开销分析](#1-算子融合的动机访存开销分析)
+2. [实验模型与编译配置](#2-实验模型与编译配置)
+3. [torch.compile 编译流水线](#3-torchcompile-编译流水线)
+4. [前向计算图优化分析](#4-前向计算图优化分析)
+5. [算子融合实例：output_code.py 解析](#5-算子融合实例output_codepy-解析)
+6. [反向计算图优化分析](#6-反向计算图优化分析)
+7. [调试产物与日志解读](#7-调试产物与日志解读)
+8. [max_autotune_gemm 警告说明](#8-max_autotune_gemm-警告说明)
+9. [性能分析工具：nsys](#9-性能分析工具nsys)
+10. [预热、cuBLAS 与 Autotune 搜索](#10-预热cublas-与-autotune-搜索)
+11. [关键知识点总结](#11-关键知识点总结)
+12. [课后练习](#12-课后练习)
 
 ---
 
-## 1. 本次对话的主线
+## 1. 算子融合的动机：访存开销分析
 
-这次对话围绕一个具体问题展开：**如何看懂 PyTorch 2.x 中 `torch.compile` 的编译过程与调试产物**。
+### 1.1 访存与执行开销
 
-我们采取**由表及里**的逻辑：
-1. **表层现象**：一个两层 MLP 脚本在运行时抛出了 `Not enough SMs to use max_autotune_gemm mode` 警告。
-2. **文本日志**：如何通过开启 `TORCH_LOGS` 阅读编译器运行时的分析与报错。
-3. **图与算子（IR）**：如何通过 `TORCH_COMPILE_DEBUG` 获取“人类可读”的图优化和算子融合过程。
-4. **底层 Kernel**：最终下发给 GPU 的那个叫作 `output_code.py` 的 Triton 算子代码长什么样，以及它为什么快。
+以一个两层 MLP 模型为例，从内存访问角度分析其性能瓶颈。设输入为 $x \in \mathbb{R}^{B \times F}$，隐藏层维度为 $H$，该 MLP 前向传播主要包含两次矩阵乘法：
 
-从代码例子开始，拆解这个编译流程。
+- 第一层：$(B \times F) \cdot (F \times H) \rightarrow (B \times H)$
+- 第二层：$(B \times H) \cdot (H \times 1) \rightarrow (B \times 1)$
+
+如果不考虑算子融合，矩阵乘法、bias 加法和 ReLU 均为独立算子。在 GPU 上，每个算子通常对应一次 kernel 启动，需要从全局内存读取输入数据，计算完成后再将结果写回全局内存，供后续算子使用。因此，算子之间的中间结果需要在全局内存中显式存储与传递。
+
+在该模型中，$(B \times H)$ 的张量正是不同算子之间传递的中间激活，其访存次数如下表所示：
+
+**表 8.1：MLP 前向传播访存分析**
+
+| 阶段 | 读取（Read） | 写入（Write） | 主要张量 |
+|------|-------------|--------------|---------|
+| 第一层矩阵乘法 $XW_1$ | $BF + FH$ | $B \times H$ | $x, W_1$ |
+| 第一层 bias 加法 | $B \times H + H$ | $B \times H$ | 中间激活, $b_1$ |
+| ReLU 激活 | $B \times H$ | $B \times H$ | 中间激活 |
+| 第二层矩阵乘法 $XW_2$ | $B \times H + H$ | $B$ | 激活, $W_2$ |
+| 第二层 bias 加法 | $B + 1$ | $B$ | 输出, $b_2$ |
+| **总计** | $\approx BF + FH + 3BH + 2H + 2B$ | $\approx 2BH + 2B$ | – |
+
+从整体规模来看，访存主要由输入 $O(BF)$、权重 $O(FH)$ 以及中间激活 $O(BH)$ 构成。其中，**中间激活在多个算子之间被反复读取与写回，是主要的数据搬运来源**。当 $B$ 和 $H$ 较大时，这部分开销占主导，使模型更容易受到内存带宽限制（memory bound）。
+
+### 1.2 片上存储容量限制
+
+该问题还受到 GPU 片上存储容量的影响。以 NVIDIA Ampere 架构为例，每个 SM 上共享内存约为 164 KB。当 $B=32, H=64$ 时，中间激活大小约为 8 KB（FP32），从容量上可以放入共享内存。但在实际执行中，还需同时存放输入、权重及其它线程块的数据，因此能够用于缓存中间激活的空间有限。随着 $B$ 或 $H$ 增大，中间激活规模按 $O(BH)$ 增长，很快无法完全驻留在共享内存中，只能频繁在全局内存与共享内存之间进行数据交换，从而增加访存开销。该问题通常通过分块（tiling）等方法提升局部数据复用（如分块矩阵乘法）来缓解。
+
+### 1.3 算子融合的概念
+
+算子融合（Operator Fusion）是深度学习框架中的重要优化技术，其核心思想是**将多个连续的算子合并为一个计算单元，从而减少中间张量的读写次数、降低内存访问开销，并提高计算效率**。
+
+以全连接层为例，矩阵乘法与偏置加法两个独立操作 $y = xW + b$ 在 PyTorch 中已被实现为一个融合算子 `nn.Linear`，从而减少一次内存读写操作。改写后，原本由 5 个独立算子产生的全局内存读写，被减少为 3 个融合算子的读写操作，显著降低了访存开销。在此基础上，还可以进一步构造更大的融合算子（如将全连接层与 ReLU 合并），以继续减少中间结果的读写次数。
 
 ---
 
-## 2. 程序要点：`code/l8-mlp.py`
+## 2. 实验模型与编译配置
 
-这个脚本的任务很简单：**训练一个两层 MLP 去拟合 `sin(x)`**。虽然模型很小，但它正好适合演示 `torch.compile` 的完整流程，因为前向图非常清晰。下面是生成我们本次调试日志（`example_debug_artifacts`）的完整核心代码，并附带了详细的注释解析：
+### 2.1 MLP 模型定义
 
-### 2.1 完整实验代码与解析
+实验采用一个极简的两层感知机（MLP）拟合 $\sin(x)$。模型虽小，但前向计算图清晰规整，非常适合演示 `torch.compile` 的完整编译流程。完整代码见 [lec8-mlp.py](lec8-mlp.py)，核心结构如下：
 
 ```python
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# 定义一个极简的两层感知机 (MLP)
 class MLP(nn.Module):
     def __init__(self, feature=1, hidden=64):
         super().__init__()
         # 第一层参数：输入特征维(1) -> 隐藏维(64)
         # 用 nn.Parameter 手动管理权重，便于观察底层对 add/matmul 的处理
-        self.weight1 = nn.Parameter(torch.randn(feature, hidden))   # 维度 (F, H)
-        self.bias1   = nn.Parameter(torch.randn(hidden))            # 维度 (H,)
+        self.weight1 = nn.Parameter(torch.randn(feature, hidden))   # (F, H)
+        self.bias1   = nn.Parameter(torch.randn(hidden))            # (H,)
 
         # 第二层参数：隐藏维(64) -> 输出维(1)
-        self.weight2 = nn.Parameter(torch.randn(hidden, 1))         # 维度 (H, 1)
-        self.bias2   = nn.Parameter(torch.randn(1))                 # 维度 (1,)
+        self.weight2 = nn.Parameter(torch.randn(hidden, 1))         # (H, 1)
+        self.bias2   = nn.Parameter(torch.randn(1))                 # (1,)
 
     def forward(self, x):
         # 算子集合 1：矩阵乘法 (matmul) + 偏置相加 (add)
-        x = x @ self.weight1 + self.bias1   # 形状 (B, H)
+        x = x @ self.weight1 + self.bias1   # (B, H)
         # 算子集合 2：激活函数 (relu)
-        # 编译器的一大任务就是考察能否把上面的 add 和这里的 relu 融合 (Fusion)
+        # 编译器的一大任务就是考察能否把 add 和 relu 融合 (Fusion)
         x = torch.relu(x)
         # 算子集合 3：第二层计算
-        x = x @ self.weight2 + self.bias2   # 形状 (B, 1)
+        x = x @ self.weight2 + self.bias2   # (B, 1)
         return x
+```
 
-# =========================
-# 配置阶段
-# =========================
+该模型的前向传播包含 5 个算子：`matmul → add → relu → matmul → add`，其中逐点操作（pointwise）`add` 与 `relu` 是最适合融合的对象。
+
+### 2.2 开启编译加速
+
+模型实例化并迁移至 GPU 后，通过 `torch.compile` 启用计算图级别优化：
+
+```python
 device = "cuda"
 batch_size = 128
-torch.manual_seed(0) # 固定随机种子以确保图捕获和生成的kernel具有一致性
+torch.manual_seed(0)  # 固定随机种子以确保图捕获和生成 kernel 的一致性
 
-# 初始化模型并移至 GPU
 model = MLP(hidden=64).to(device)
 
-# ⭐️ 核心关键：使用 torch.compile 开启 PyTorch 2.x 编译加速
-# backend="inductor": 使用默认的 OpenAI Triton 作为代码生成后端
-# mode="default": 默认模式，追求编译时间和运行性能的平衡 (其余如 max-autotune 会追求极致性能)
-model = torch.compile(
-    model,
-    backend="inductor",
-    mode="default",
-)
+# 核心关键：使用 torch.compile 开启 PyTorch 2.x 编译加速
+# backend="inductor": 使用 TorchInductor 作为代码生成后端
+# mode="default": 默认模式，在编译时间和运行性能之间取得平衡
+model = torch.compile(model, backend="inductor", mode="default")
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-# =========================
-# 训练阶段：拟合 sin(x)
-# =========================
 for step in range(500):
-    # 生成 [0, 2π] 之间的一维随机输入数据作为 x
-    x = torch.rand(batch_size, 1, device=device) * 2 * torch.pi  
-
-    # 构造理论真值 y = sin(x)，且不计算梯度
+    x = torch.rand(batch_size, 1, device=device) * 2 * torch.pi
     with torch.no_grad():
-        y = torch.sin(x)  # 形状 (B, 1)
-
-    # 前向计算：在此处，TorchDynamo 会在第一次/前几次 step 捕获计算图并触发 Inductor 编译
+        y = torch.sin(x)
     out = model(x)
-
-    # 计算均方误差损失
     loss = F.mse_loss(out, y)
-
-    # 反向传播与参数更新：同样地，反向传播的图也会被 AOTAutograd 截获和编译
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-
     if step % 50 == 0:
         print(f"step {step}, loss = {loss.item():.6f}")
-
-print("done")
 ```
 
-这份代码就是产生后续全部 `DEBUG` 文件的“罪魁祸首”。通过在终端用环境变量包裹这条执行命令：
-```bash
-TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python l8-mlp.py
-```
-这四五十行代码在后台执行的是：图捕获 → 图优化 → 代码生成 (Triton) → 编译为 .cubin 二进制。
+### 2.3 `torch.compile` 的关键参数
+
+`torch.compile` 是 PyTorch 2.x 提供的图编译接口，其函数签名支持多个关键参数，用于控制计算图捕获方式、优化策略及执行后端：
+
+| 参数 | 说明 |
+|------|------|
+| `model` | 待编译的 PyTorch 模型或函数（必选） |
+| `backend="inductor"` | 指定编译后端，默认使用 TorchInductor |
+| `mode` | 控制编译优化策略的预设模式 |
+| `fullgraph=False` | 是否强制进行完整计算图捕获 |
+| `dynamic=False` | 是否启用动态形状支持 |
+
+`mode` 的常见选项：
+
+- **`"default"`**：默认模式，在编译时间与运行性能之间取得平衡。
+- **`"reduce-overhead"`**：减少 Python 调度与框架开销，适用于小模型或频繁调用场景。
+- **`"max-autotune"`**：通过更激进的 kernel 搜索获得最高运行性能，但编译时间显著增加。
+
+`fullgraph=True` 时，若执行过程中发生 graph break（如 Python 控制流无法静态追踪），将直接报错，从而保证图优化的完整性，但会降低兼容性。`dynamic=True` 时，模型允许输入张量 shape 在运行时变化，但可能限制部分静态图优化（如算子融合与内存优化）。
 
 ---
 
-## 3. 日志怎么开、怎么读
+## 3. torch.compile 编译流水线
 
-PyTorch 编译调试大致有两种“读法”：
-
-### 3.1 终端文本日志
-
-推荐的启动方式是：
-
-```bash
-TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python3 l8-mlp.py 2>&1 | tee run.log
-```
-
-这里有三个效果：
-
-- `TORCH_LOGS="+dynamo,+inductor"`：把 Dynamo 和 Inductor 的详细过程打印出来。
-- `TORCH_COMPILE_DEBUG=1`：把更完整的调试产物导出到 `torch_compile_debug/`。
-- `tee run.log`：一边看，一边把终端输出保存到文件，方便回放。
-
-这种日志最适合回答的问题是：
-
-- 有没有成功捕获到图？
-- 有没有 graph break？
-- 编译器有没有命中缓存？
-- 有没有启用 autotuner？
-- 某个优化步骤是不是被跳过了？
-
-### 3.2 具体到这次运行的可见信息
-
-这次运行的 `run.log` 里有几个很关键的信号。
-
-第一类是 Inductor / autotune 相关：
-
-```text
-Loading 1 statically launchable autotuners
-Loading 2 statically launchable autotuners
-fx graph cache hit for key ...
-Step 2: done compiler function inductor
-```
-
-这说明：
-
-- Inductor 确实介入了编译。
-- 有静态可启动的 autotuner 被加载。
-- 至少有部分图命中了缓存。
-
-第二类是更底层的 emit / bundler 信息：
-
-```text
-Bailing out TritonBundler.read_and_emit, ... is non empty
-```
-
-这类信息通常不是错误，更像是在告诉你：某个输出目录已经有内容，所以这次没有重复导出。
-
-### 3.3 `torchdynamo/debug.log`
-
-这次生成的 `torchdynamo/debug.log` 更接近“人类可读的 trace”。它直接写出了：
-
-- 哪一行代码开始 tracing
-- 读取了哪些参数
-- 生成了什么图节点
-- 最终的 traced FX Graph 长什么样
-
-日志中最有价值的一段是 traced graph。它把 `MLP.forward` 压缩成了一个明确的算子序列：
-
-```text
-matmul -> add -> relu -> matmul -> add
-```
-
-这就是后续优化的入口。
-
----
-
-## 4. 调试产物与“人类可读”结果
-
-你之前记得的“老师展示的那个版本”，基本就是这类导出的调试文件。
-
-### 4.1 典型目录结构
-
-当 `TORCH_COMPILE_DEBUG=1` 生效时，通常会在工程目录下得到类似：
-
-```text
-code/torch_compile_debug/
-  run_2026_05_05_xxx-pid_xxxx/
-    torchdynamo/
-      debug.log
-    torchinductor/
-      aot_model___0_debug.log
-      model__0_forward_1.0/
-        fx_graph_readable.py
-        fx_graph_transformed.py
-        ir_pre_fusion.txt
-        ir_post_fusion.txt
-        output_code.py
-      model__0_backward_3.1/
-        fx_graph_readable.py
-        fx_graph_transformed.py
-        ir_pre_fusion.txt
-        ir_post_fusion.txt
-        output_code.py
-```
-
-其中：
-
-- `fx_graph_readable.py`：更接近原始图结构的 FX 表示。
-- `fx_graph_transformed.py`：经过图变换后的 FX 图。
-- `ir_pre_fusion.txt`：融合前的中间表示。
-- `ir_post_fusion.txt`：融合后的中间表示。
-- `output_code.py`：最终生成的执行代码，通常最接近实际 kernel。
-- `aot_model___0_debug.log`：AOTAutograd 相关调试信息。
-
-### 4.2 什么叫“人类可读”
-
-“人类可读”并不是指最终机器执行的 PTX / SASS，而是指：
-
-- 你能看懂图里有哪些节点。
-- 你能看懂哪些算子被合并了。
-- 你能看懂前向、反向是如何拆分的。
-- 你能看懂哪些张量被中间缓存了。
-
-从教学角度说，最有价值的是这三层：
-
-1. FX Graph：看“原本有哪些算子”。
-2. IR post fusion：看“哪些算子被融合在一起”。
-3. output_code：看“最后到底生成了什么执行代码”。
-
-### 4.3 这次运行里能直接读出的图结构
-
-从 `torchdynamo/debug.log` 可以直接看到这段前向图：
-
-- 输入 `x`
-- `x @ weight1 + bias1`
-- `relu`
-- `x @ weight2 + bias2`
-- 返回输出
-
-这说明这个 MLP 的计算图非常规整，没有复杂控制流，也没有明显 graph break，所以很适合用来观察编译器优化。
-
----
-
-## 5. 警告信息：`Not enough SMs to use max_autotune_gemm mode`
-
-这条信息很容易让人误解成“程序有问题”，但实际上不是。
-
-### 5.1 这句话的字面意思
-
-它的意思是：**当前 GPU 的 SM 数量不够大，或者当前 GEMM 任务不够大，不值得进入最激进的 `max_autotune_gemm` 调优模式**。
-
-SM 是 Streaming Multiprocessor，可以理解成 GPU 里负责并行计算的基本执行单元。调优模式越激进，意味着：
-
-- 会搜索更多 kernel 变体。
-- 会花更多编译时间和 autotune 时间。
-- 只有当任务足够大、收益足够明显时才值得。
-
-### 5.2 为什么小 MLP 更容易触发它
-
-你的脚本是一个很小的 MLP：
-
-- batch size = 128
-- hidden = 64
-- 两个矩阵乘法的形状都不大
-
-这种场景下，矩阵乘法的规模偏小，编译器更容易判断：
-
-- `max_autotune_gemm` 的收益不一定值得它的代价。
-- 直接走较保守、较稳定的路径更合适。
-
-所以这条 warning 的本质是：
-
-- **不是报错**
-- **不是失败**
-- **而是“我不启用最重的搜索模式了”**
-
-### 5.3 对性能意味着什么
-
-这条提示暗示的是一个折中：
-
-- 追求极致性能：开启更激进的 autotune，可能更慢编译，但运行更快。
-- 追求稳定和更快编译：跳过激进搜索，直接用保守策略。
-
-对于像你这个脚本这样的小模型，这个折中通常是合理的。
-
----
-
-## 6. 背后的计算图优化流程
-
-PyTorch 2.x 的 `torch.compile` 不是“魔法开关”，它背后是一条很清晰的流水线。
-
-### 6.1 总流程：从 Python 到 GPU Kernel
+`torch.compile` 的优化流程以 **FX Graph** 作为统一的中间表示（IR），整体由 TorchDynamo、AOTAutograd 与 TorchInductor 三个组件协同完成。
 
 ```mermaid
 graph TD
@@ -321,107 +162,141 @@ graph TD
     F --> G(GPU 执行)
 ```
 
-这条链路里最关键的思想是：
+### 3.1 TorchDynamo：计算图捕获
 
-- 把动态图“先看成图”。
-- 在图上做优化，而不是逐行执行 Python。
-- 优化完成后再生成更高效的底层 kernel。
-
-### 6.2 TorchDynamo：图捕获
-
-TorchDynamo 的工作是：
-
-- 运行时观察 Python 代码。
-- 找出其中的张量运算。
-- 把这些运算提取成图。
-
-它做的不是传统意义上的静态编译，而是“尽量在不改用户代码的前提下，把动态图提成图”。
-
-你的日志里有非常直观的一句：
+TorchDynamo 负责在运行时捕获 Python 程序中的张量操作，将动态图转换为静态计算图（FX Graph）。其目标是在不改变用户代码的前提下，实现图级分析与优化的入口。日志中可直接观察到捕获过程的启动：
 
 ```text
 Step 1: torchdynamo start tracing forward ...
 ```
 
-这意味着：Dynamo 确实开始对 `MLP.forward` 做 tracing 了。
+由于本实验中的 MLP 模型没有复杂分支、数据依赖上的不确定性或动态控制流，TorchDynamo 可以完整捕获前向图，不会出现 graph break。
 
-### 6.3 FX Graph：统一中间表示
+### 3.2 FX Graph：统一中间表示
 
-FX Graph 是 `torch.compile` 体系里非常核心的一层。
+FX Graph 作为统一的中间表示（IR），描述模型的计算结构：
 
-它把代码中的张量运算表示成节点和边：
+- **节点**：算子，例如 `matmul`、`add`、`relu`
+- **边**：张量数据流
 
-- 节点：算子，例如 `matmul`、`add`、`relu`
-- 边：张量数据流
+该阶段支持符号追踪（symbolic tracing）以及图变换（graph rewrite），为后续优化提供基础。后端可以在统一 IR 上进行图变换、节点重排、算子融合和内存规划。
 
-这样后端就可以在统一 IR 上做：
+### 3.3 AOTAutograd：前后向拆分
 
-- 图变换
-- 节点重排
-- 算子融合
-- 内存规划
+AOTAutograd（Ahead-Of-Time Autograd）将自动求导过程提前展开，把前向计算与反向梯度计算分离成两个独立的计算图。这样做的好处是：
 
-这次日志里展示的 traced graph 就是一个标准 FX 图的例子。
-
-### 6.4 AOTAutograd：前后向拆分
-
-自动求导本身也可以被展开成图。
-
-AOTAutograd 做的事情就是：
-
-- 把前向计算图和反向梯度图拆开。
-- 让它们各自独立优化。
-
-这样做的好处是：
-
-- 前向和反向可以采用不同的优化策略。
-- 中间张量的生命周期更清楚。
+- 前向和反向可以采用不同的优化策略；
+- 中间张量的生命周期更清楚；
 - 更容易安排内存复用与缓存。
 
-### 6.5 TorchInductor：优化与代码生成
+### 3.4 TorchInductor：优化与代码生成
 
-TorchInductor 是最终真正把图“落地”的后端。
+TorchInductor 是最终真正把图"落地"的编译后端。它对计算图进行多层级优化，并基于中间表示进行调度（scheduling），最终生成高性能后端代码（GPU 上生成 Triton kernel 或调用底层高性能实现）。其工作包括：图级优化、算子融合（fusion）、调度、代码生成。
 
-它会做的事情包括：
+### 3.5 核心思想
 
-- 图级优化
-- 算子融合（fusion）
-- 调度（scheduling）
-- 代码生成
+`torch.compile` 的核心不是简单的加速开关，而是把原本在 Python 中逐条执行的张量操作：
 
-在 GPU 上，TorchInductor 常常会进一步生成 Triton kernel，或者调用底层高性能实现。
-
-### 6.6 算子融合到底在融合什么
-
-算子融合的本质是：
-
-**把多个小算子合并成更少的 kernel，减少中间张量读写和 launch 开销。**
-
-对于这个 MLP 来说，最容易被优化的地方是：
-
-- `matmul + bias`
-- `relu`
-- 下一层 `matmul + bias`
-
-其中点wise 操作（`add`、`relu`）最适合融合；矩阵乘法通常是主算子，往往与 epilogue 结合或在相邻调度中处理。
-
-优化目标主要有三个：
-
-1. 减少 kernel 数量。
-2. 减少 global memory 的中间读写。
-3. 提高缓存利用率和执行吞吐。
+1. 先捕获成图（TorchDynamo）；
+2. 在图上做优化（AOTAutograd 拆分前后向 + TorchInductor 融合与调度）；
+3. 最后生成更高效的 GPU kernel（Triton）。
 
 ---
 
-## 7. 深入解析 `output_code.py` (算子融合实战)
+## 4. 前向计算图优化分析
 
-在先前的调试中，TorchInductor 最终生成的代码落在全局缓存目录（如 `/tmp/torchinductor_$USER/gj/`）中。我们已将其拷贝到了本笔记同级目录下：[output_code.py](output_code.py)。
+通过 `TORCH_COMPILE_DEBUG=1` 环境变量，可以导出编译过程中的中间表示与生成代码。前向计算图的优化过程可分为三个阶段：原始图 → 图变换 → 算子融合。
 
-### 7.1 引言：为什么 debug 目录下找不到 output_code？
-有时 `torch_compile_debug` 目录下的 `output_code.py` 会缺失或是一个空文件，这是因为 Inductor 会根据计算图的 hash 命中缓存，直接将最终生成的 Triton 代码输出到系统全局缓存目录。通过日志可以顺藤摸瓜找到它。
+### 4.1 优化过程图示
 
-### 7.2 剖析生成的 Triton Kernel
-从 [output_code.py](output_code.py) 中，我们可以清楚地看到**算子融合（Operator Fusion）**的具体实现。注意看这段核心代码：
+```mermaid
+graph LR
+    subgraph 原始图
+        A1[Input] --> B1[MatMul] --> C1[Add] --> D1[ReLU] --> E1[MatMul] --> F1[Add] --> G1[Output]
+    end
+    subgraph 图优化
+        A2[Input] --> B2[MatMul] --> C2[Add] --> D2[ReLU] --> E2[addmm] --> G2[Output]
+    end
+    subgraph Triton 算子融合
+        A3[Input] --> B3[MatMul] --> C3["Add + ReLU 融合"] --> E3[addmm] --> G3[Output]
+    end
+```
+
+### 4.2 优化前的 FX Graph（fx_graph_readable.py）
+
+导出的 [fx_graph_readable.py](example_debug_artifacts/model__0_forward_1.0/fx_graph_readable.py) 直接展示了从 Python 代码捕获的计算图。该计算图的返回值列表 `[add_1, primals_4, relu, permute_2]` 为后续反向传播与编译优化提供了必要的计算上下文：
+
+```python
+class GraphModule(torch.nn.Module):
+    def forward(self,
+        primals_1: "f32[1, 64]",      # weight1: 第一层权重 (1 -> 64)
+        primals_2: "f32[128, 1]",     # input: 输入数据 (batch=128, features=1)
+        primals_3: "f32[64]",         # bias1: 第一层偏置
+        primals_4: "f32[64, 1]",      # weight2: 第二层权重 (64 -> 1)
+        primals_5: "f32[1]"           # bias2: 第二层偏置
+    ):
+        # ---------------- 第一层：Linear + ReLU ----------------
+        # 矩阵乘法: (128,1) @ (1,64) -> (128,64)
+        mm: "f32[128, 64]" = torch.ops.aten.mm.default(primals_2, primals_1)
+        primals_1 = None  # FX 内存优化标记：显式置空，提示运行时可提前释放显存
+        # 加法（广播）: (128,64) + (64,) -> (128,64)
+        add: "f32[128, 64]" = torch.ops.aten.add.Tensor(mm, primals_3)
+        mm = primals_3 = None  # 释放中间变量，降低峰值内存占用
+        # ReLU 激活
+        relu: "f32[128, 64]" = torch.ops.aten.relu.default(add)
+        add = None
+
+        # ---------------- 第二层：Linear ----------------
+        # 矩阵乘法: (128,64) @ (64,1) -> (128,1)
+        mm_1: "f32[128, 1]" = torch.ops.aten.mm.default(relu, primals_4)
+        # 加法（广播）: (128,1) + (1,) -> (128,1)
+        add_1: "f32[128, 1]" = torch.ops.aten.add.Tensor(mm_1, primals_5)
+        mm_1 = primals_5 = None
+
+        # ---------------- 用于梯度计算 ----------------
+        permute_2: "f32[1, 128]" = torch.ops.aten.permute.default(primals_2, [1, 0])  # input_x.T
+        primals_2 = None
+
+        return (add_1, primals_4, relu, permute_2)
+```
+
+各返回值在梯度计算中的作用如下：
+
+| 返回值 | 形状 | 梯度计算 | 作用说明 |
+|--------|------|---------|---------|
+| `add_1` | `[128, 1]` | $\partial L / \partial \text{add}_1$ | 模型最终输出张量，用于计算损失函数 |
+| `primals_4` | `[64, 1]` | $\partial L / \partial W_2$ | 第二层权重 $W_2$，用于权重梯度计算 |
+| `relu` | `[128, 64]` | $\partial L / \partial W_2$ | 隐藏层输出，用于计算 $\partial L/\partial W_2 = \text{relu}^\top \cdot \partial L/\partial \text{add}_1$ |
+| `permute_2` | `[1, 128]` | $\partial L / \partial W_1$ | 输入张量转置 $X^\top$，用于计算 $\partial L/\partial W_1 = X^\top \cdot \partial L/\partial \text{relu}$ |
+
+### 4.3 图变换后的 FX Graph（fx_graph_transformed.py）
+
+经过图变换优化后，`add + matmul` 的组合被识别并替换为更高效的融合算子 `addmm`：
+
+```python
+# 优化前（分步执行）:
+mm_1 = torch.ops.aten.mm.default(relu, primals_4)
+add_1 = torch.ops.aten.add.Tensor(mm_1, primals_5)
+
+# 优化后（融合为 addmm）:
+addmm_default = torch.ops.aten.addmm.default(
+    primals_5,    # bias2
+    relu,         # input
+    primals_4     # weight2
+)
+```
+
+`addmm` 将偏置加法与矩阵乘法合并为一个算子，减少了中间结果的读写。这正是 `nn.Linear` 等高层 API 内部利用的优化。
+
+---
+
+## 5. 算子融合实例：output_code.py 解析
+
+TorchInductor 最终将 FX Graph 降阶（lowering）为可在 GPU 上执行的 Triton Kernel。完整生成代码见 [output_code.py](output_code.py) 或 [example_debug_artifacts/model__0_forward_1.0/output_code.py](example_debug_artifacts/model__0_forward_1.0/output_code.py)。
+
+### 5.1 融合后的 Triton Kernel
+
+最关键的算子融合发生在第一层的 `add`（加偏置）与 `relu`（激活）之间。编译器自动将这两个逐点操作合并为一个名为 `triton_poi_fused_add_relu_0` 的 Pointwise 算子：
 
 ```python
 @triton.jit
@@ -432,23 +307,24 @@ def triton_poi_fused_add_relu_0(in_out_ptr0, in_ptr0, xnumel, XBLOCK : tl.conste
     xmask = tl.full([XBLOCK], True, tl.int1)[:]
     x2 = xindex
     x0 = (xindex % 64)
-    
+
     # 1. Load: 读取前一层 matmul 的输出 (in_out_ptr0) 和 bias (in_ptr0)
     tmp0 = tl.load(in_out_ptr0 + (x2), None)
     tmp1 = tl.load(in_ptr0 + (x0), None, eviction_policy='evict_last')
-    
+
     # 2. Compute: add 计算 (x + bias1)
     tmp2 = tmp0 + tmp1
-    
+
     # 3. Compute: relu 计算 (即 maximum(0, x))
     tmp3 = tl.full([1], 0, tl.int32)
     tmp4 = triton_helpers.maximum(tmp3, tmp2)
-    
+
     # 4. Store: 统一写回 global memory
     tl.store(in_out_ptr0 + (x2), tmp4, None)
 ```
 
-#### Graph Fusion 的直观图示
+### 5.2 融合前后的访存对比
+
 ```mermaid
 graph LR
     subgraph 融合前_多次访存
@@ -457,7 +333,7 @@ graph LR
         C -->|Load| D(ReLU Kernel)
         D -->|Store| E[Global Memory: relu_out]
     end
-    
+
     subgraph 融合后_单次访存
         F[Global Memory: matmul_out] -->|Load 1次| G(Fused Add+ReLU Kernel)
         G -.->|Register 中计算| H[tmp2 = tmp0 + tmp1]
@@ -466,229 +342,246 @@ graph LR
     end
 ```
 
-**核心结论与优势：**
-- **融合了什么：** 编译器自动把 `add`（加上 bias）和 `relu`（非线性激活）合并进了一个名为 `triton_poi_fused_add_relu_0` 的 Pointwise 算子中。
-- **性能为什么提升：** 
-  - **如果不融合：** 需要先算加法，结果写回 Global Memory；再启动一个 ReLU kernel，从 Global Memory 把数据读出来，判断大于 0后再写回。这涉及两次慢速的 Global Memory 读写。
-  - **融合之后：** 加法结果 `tmp2` 到 ReLU 结果 `tmp4` 全程**都在寄存器（Registers）里发生**，极大砍掉了访存开销，这也是图优化带来的“免费午餐”。
+**核心结论：**
+
+- **融合了什么**：编译器自动把 `add`（加上 bias）和 `relu`（非线性激活）合并进了一个 Pointwise 算子中。
+- **不融合时的开销**：需要先算加法，结果写回 Global Memory；再启动一个 ReLU kernel，从 Global Memory 把数据读出来，判断大于 0 后再写回。这涉及两次慢速的 Global Memory 读写。
+- **融合后的收益**：加法结果 `tmp2` 到 ReLU 结果 `tmp4` 全程都在寄存器（Registers）里完成，极大减少了访存开销。对于显存带宽受限（Memory Bound）的 GPU 计算，这种优化比单纯提高算力收益更大。
+
+此外，生成的执行代码中还体现了**内存复用**策略。`buf1 = buf0; del buf0` 表示复用同一块显存缓冲区，无需额外分配，进一步降低峰值显存占用。
 
 ---
 
-## 8. 关键知识点总结
+## 6. 反向计算图优化分析
 
-### 7.1 计算图（Computation Graph）
+反向传播由于自动微分机制，其计算图比前向更复杂。AOTAutograd 将其静态展开后，TorchInductor 同样对其执行算子融合。
 
-深度学习模型的前向与反向过程可以抽象为 DAG：
+### 6.1 反向计算图的结构
 
-- 节点表示算子。
-- 边表示张量依赖。
-- 只要控制流足够稳定，就能把运行时行为提成图进行优化。
+反向传播需要计算四组梯度：$\partial L/\partial W_2$、$\partial L/\partial b_2$、$\partial L/\partial W_1$、$\partial L/\partial b_1$。优化前的反向 FX Graph 结构如下：
 
-### 7.2 图优化的目标
+```python
+class GraphModule(torch.nn.Module):
+    def forward(self,
+        relu: "f32[128, 64]",           # forward 中间激活值（ReLU 输出）
+        primals_4: "f32[64, 1]",         # W2（第二层权重）
+        permute_2: "f32[1, 128]",        # X^T（第一层输入转置）
+        tangents_1: "f32[128, 1]"        # dL/dOutput（loss 对输出的梯度）
+    ):
+        # dL/db2 = sum_batch（对 batch 维度求和：128 → 1）
+        sum_1 = torch.ops.aten.sum.dim_IntList(tangents_1, [0], True)
+        view = torch.ops.aten.view.default(sum_1, [1])
 
-图优化不是为了改变语义，而是为了在语义不变的前提下提高性能：
+        # dL/dW2 = relu^T @ dL/dout（第二层权重梯度，GEMM）
+        permute = torch.ops.aten.permute.default(relu, [1, 0])
+        mm_2 = torch.ops.aten.mm.default(permute, tangents_1)
 
-- 算子融合
-- 中间结果复用
-- 减少内存访问
-- 降低 kernel launch 开销
+        # dL/drelu = dL/dout @ W2^T
+        mm_3 = torch.ops.aten.mm.default(tangents_1, primals_4)
 
-### 7.3 `torch.compile` 的几个重要参数
+        # dL/dx = dL/drelu * 1(relu > 0)（ReLU backward，逐元素 mask）
+        le = torch.ops.aten.le.Scalar(relu, 0)
+        full_default = torch.ops.aten.full.default([], 0.0, ...)
+        where = torch.ops.aten.where.self(le, full_default, mm_3)
 
-#### `backend="inductor"`
+        # dL/db1 = sum_batch（第一层 bias 梯度）
+        sum_2 = torch.ops.aten.sum.dim_IntList(where, [0], True)
+        view_1 = torch.ops.aten.view.default(sum_2, [64])
 
-指定后端为 TorchInductor。它是 PyTorch 2.x 默认的高性能编译后端之一。
+        # dL/dW1 = X^T @ dL/dx（第一层权重梯度，GEMM）
+        mm_4 = torch.ops.aten.mm.default(permute_2, where)
 
-#### `mode="default"`
+        return [mm_4, view_1, mm_2, view, None]
+```
 
-默认模式，在编译开销与运行性能之间做平衡。
+### 6.2 反向算子融合
 
-常见模式还包括：
+TorchInductor 在反向传播阶段将多个算子组合映射为多个 Triton kernel，实现计算图级别优化。主要融合点包括：
 
-- `reduce-overhead`：减少编译和 Python 调度开销，适合小模型或频繁调用。
-- `max-autotune`：更激进的 kernel 搜索，通常编译更慢，但可能跑得更快。
+1. **`sum + view` 融合**：bias 梯度计算中的 `sum` 与 `view` 被合并为一个 reduction kernel（`triton_per_fused_sum_0`）。
+2. **ReLU backward 融合**：`where + mask` 操作被合并为一个 pointwise kernel（`triton_poi_fused_threshold_backward_1`），在寄存器中完成逐元素判断。
+3. **缓冲区复用**：反向传播中对 ReLU backward 的输出复用了前一步的 buffer（`buf3 = buf2; del buf2`），减少显存分配。
 
-#### `fullgraph=False`
+### 6.3 反向优化图示
 
-是否强制完整捕获计算图。
-
-- `True`：一旦出现 graph break 就报错。
-- `False`：更灵活，兼容性更好。
-
-#### `dynamic=False`
-
-是否支持动态 shape。
-
-- `True`：输入形状允许变化。
-- `False`：更利于静态优化与融合。
-
-### 7.4 `TORCH_COMPILE_DEBUG=1` 的价值
-
-它是看“人类可读结果”的关键。
-
-如果没有它，你通常只能看到编译器的普通执行结果；有了它，你可以进一步观察：
-
-- 捕获到的图
-- 图变换后的图
-- 融合前后的 IR
-- 最终生成的代码
-
-### 7.5 `SM`、`GEMM` 与 autotune
-
-- `SM` 决定了 GPU 的并行吞吐能力。
-- `GEMM` 是深度学习里最核心的矩阵乘法模式。
-- autotune 的目标是找到最优的 kernel 配置。
-
-但 autotune 是有成本的，所以：
-
-- GPU 太小，不一定值得开最重的搜索模式。
-- 矩阵太小，不一定能从极致调优中获益。
-
-这就是 `Not enough SMs ...` 这类提示的背景。
-
-### 7.6 这次 `l8-mlp.py` 的图结构为什么清晰
-
-这个脚本没有复杂分支，没有数据依赖上的不确定性，也没有动态控制流，所以：
-
-- TorchDynamo 很容易完整捕获前向图。
-- FX Graph 很整齐。
-- Inductor 很容易做基本优化和缓存。
-
-这也是它非常适合作为入门示例的原因。
+```mermaid
+graph TD
+    subgraph 优化前
+        T1[dL/dOut] --> R1[ReLU] --> M1[W2^T] --> S1[Sum] --> V1[View]
+        M1 --> MM1[MatMul dW2]
+        S1 --> V1
+        X1[X^T] --> MM2[MatMul dW1]
+        T1 --> LE[Mask] --> WH[Where] --> S2[Sum dW1]
+    end
+    subgraph Triton 融合后
+        T2[dL/dOut] --> R2[ReLU Backward 融合]
+        R2 --> M2[MatMul dW2]
+        R2 --> M3[MatMul dW1]
+        T2 --> F2["Sum+View 融合 dW2"]
+    end
+```
 
 ---
 
-## 9. 本次实战的最终结论
+## 7. 调试产物与日志解读
 
-### 8.1 结构解读
+### 7.1 开启调试产物导出
 
-(原节结束)
-
----
-
-## 10. `torch_compile_debug` 目录树与 Debug 产物解析
-
-通过在终端中清理缓存并重新运行，我们可以强制 `TorchInductor` 将中间产物写出，得到完整的调试目录树。我已经用代码替你在实验目录生成并导出了一份标准结果，你可以到 [example_debug_artifacts](example_debug_artifacts/) 下面看看。
-
-这个目录树就是典型的“白盒化”结构：
+开启 `TORCH_COMPILE_DEBUG=1` 后，通常在工程目录下生成如下结构：
 
 ```text
-|-- aot_model___0_debug.log              # AOTAutograd 调试日志：记录了前向反向计算图如何拆分
-|-- model__0_forward_1.0/                # 前向计算图编译结果
-|   |-- fx_graph_readable.py             # FX Graph（前向）：直接捕获自 Python，也就是“模型原来的样子”
-|   |-- fx_graph_transformed.py          # 优化后的 FX Graph：经过各种常量折叠、冗余算子消除后的高级图表示
-|   |-- ir_pre_fusion.txt                # fusion 前 IR 表示：Inductor 将 FX 翻译成底层 IR，但还没开始做算子融合
-|   |-- ir_post_fusion.txt               # fusion 后 IR 表示：算子融合过程后的 IR，观察 add 和 relu 如何被安排在同一层计算
-|   |-- output_code.py                   # 生成的 kernel 代码：这就是真正下发给 GPU 跑的 Triton 代码了
-`-- model__0_backward_3.1/               # 反向计算图编译结果（反向传播由于自动微分会计算梯度，这部分往往更复杂）
-    |-- fx_graph_readable.py             # FX Graph（反向）
-    |-- fx_graph_transformed.py          # 优化后的 FX Graph
-    |-- ir_pre_fusion.txt                # fusion 前 IR 表示
-    |-- ir_post_fusion.txt               # fusion 后 IR 表示
-    `-- output_code.py                   # 生成的 kernel 代码
+torch_compile_debug/
+  run_2026_05_05_xxx-pid_xxxx/
+    aot_model___0_debug.log              # AOTAutograd 调试日志：记录前后向拆分
+    torchdynamo/
+      debug.log                          # TorchDynamo tracing 日志
+    torchinductor/
+      model__0_forward_1.0/              # 前向计算图编译结果
+        fx_graph_readable.py             # FX Graph（前向）：直接捕获自 Python
+        fx_graph_transformed.py          # 图变换优化后的 FX Graph
+        ir_pre_fusion.txt                # fusion 前 IR 表示
+        ir_post_fusion.txt               # fusion 后 IR 表示
+        output_code.py                   # 最终生成的 Triton kernel 代码
+      model__0_backward_3.1/             # 反向计算图编译结果
+        fx_graph_readable.py
+        fx_graph_transformed.py
+        ir_pre_fusion.txt
+        ir_post_fusion.txt
+        output_code.py
 ```
 
-### 10.1 这个目录结构告诉我们什么？
-1. **分级降阶（Lowering）的思想**：你写的是纯 Python，TorchDynamo 把它编译成 `FX Graph` (也是 Python)；然后再降阶到 Inductor IR；接着做算子融合 (post_fusion)；最后再生成 `Triton kernel (output_code)`。
-2. **前后向拆分（AOTAutograd）**：`torch.autograd` 原本是在运行时动态建图，而加上 `torch.compile` 后，整个 forward 和 backward 的算子链路都被静态地分析出并写到了 `model__0_forward` 和 `model__0_backward` 两个不同的子目录中。
+本笔记目录下已附带一份标准导出结果，可直接查阅：[example_debug_artifacts/](example_debug_artifacts/)。
 
----
+各文件对应的优化阶段：
 
-## 11. 课后作业 (Homework)
+| 文件 | 阶段 | 内容 |
+|------|------|------|
+| `fx_graph_readable.py` | FX Graph | 从 Python 代码捕获的原始计算图 |
+| `fx_graph_transformed.py` | 图变换 | 经过常量折叠、冗余算子消除等优化后的图 |
+| `ir_pre_fusion.txt` | Inductor IR | FX 翻译为底层 IR，但尚未做算子融合 |
+| `ir_post_fusion.txt` | Inductor IR | 算子融合后的 IR，可观察 add 与 relu 的融合 |
+| `output_code.py` | 代码生成 | 最终下发给 GPU 执行的 Triton 代码 |
 
-### 作业 1：手动触发与观察缓存命中 (Cache Hit)
-1. **清理缓存**：首先在终端运行 `rm -rf /tmp/torchinductor_$(whoami)`。
-2. **执行并观察生成新代码**：使用以下命令跑一次您的脚本，注意观察 `torch_compile_debug` 里面此时会生成完整的新文件，包括 `output_code.py`。
-   ```bash
-   cd ~/code/ 
-   TORCH_COMPILE_DEBUG=1 python3 l8-mlp.py
-   ```
-3. **再次执行并观察缓存行为**：**立刻再执行一次相同的命令**。这一次去新生成的 `torch_compile_debug/run_*` 里找 `output_code.py`。你会发现里面可能只有一些空文件或者是被截断的内容！
-4. **思考题**：翻看两次运行分别输出的终端日志，找一句含有 `fx graph cache hit` 或类似 `Bailing out TritonBundler.read_and_emit` 字样的日志。请用自己的话描述：PyTorch 是如何避免对不变的计算图重复进行昂贵的 Triton 编译的？
+### 7.2 分级降阶（Lowering）思想
 
-### 作业 2：解读 `output_code.py` 性能玄机
-打开 [example_debug_artifacts/model__0_forward_1.0/output_code.py](example_debug_artifacts/model__0_forward_1.0/output_code.py)（或你本地刚才生成的版本）：
-1. 找出里面代表 Triton Kernel 的 Python 函数（通常形如 `def triton_poi_fused_add_relu_...`）。
-2. 请解释这个单一 Kernel 里面，一共执行了哪**两步**数学操作？
-3. 如果这部分没有这套代码自动生成工具，作为开发者，你需要手写几个 Kernel？需要多少次 Global Memory 的读写？算出粗略的节省比例。
+整个调试产物体现了清晰的**分级降阶**过程：
 
----
+```
+纯 Python 模型 → FX Graph（也是 Python）→ Inductor IR → 算子融合 → Triton Kernel → GPU 执行
+```
 
-## 12. 本次实战的宏观总结
+- **分级降阶**：模型从高层 Python 表示，逐步降阶到 Inductor IR，再到低层 Triton kernel。
+- **前后向拆分**：`torch.autograd` 原本在运行时动态建图，而加上 `torch.compile` 后，整个 forward 和 backward 的算子链路都被静态分析并写入各自的子目录。
 
-### 1. 常见困惑
-- **Warning != Error**：`Not enough SMs` 是 Inductor 的策略提示，小规模矩阵不值得开启高开销的极致调优。
-- **被隐藏的代码**：Torch 编译器在后台生成代码，通过 `TORCH_COMPILE_DEBUG=1` 可以查看。
-- **缓存重用**：Graph 确定后，生成的 Python Wrapper 和 Triton Kernel 会进入 Cache，跳过重编译。
+### 7.3 终端文本日志
 
-### 2. 算子融合 (Operator Fusion) 的意义
-算子融合不改变数学公式，核心是减少 Global Memory 的读写次数，让中间结果尽量留在寄存器里。对显存带宽受限（Memory Bound）的 GPU 计算，这比单纯提高算力收益更大。
-
-### 8.1 对“日志怎么看”的结论
-
-如果你想看编译过程本身，优先看：
-
-- `run.log`
-- `torchdynamo/debug.log`
-
-如果你想看更“图化”的优化结果，优先看：
-
-- `fx_graph_readable.py`
-- `fx_graph_transformed.py`
-- `ir_pre_fusion.txt`
-- `ir_post_fusion.txt`
-- `output_code.py`
-
-### 8.2 对“Not enough SMs ...”的结论
-
-它的意思不是出错，而是：
-
-- 当前场景不适合启用最激进的 GEMM autotune。
-- 编译器选择了更保守、更稳定的策略。
-
-### 8.3 对“torch.compile 背后原理”的结论
-
-`torch.compile` 的核心不是简单加速，而是把原本在 Python 中逐条执行的张量操作：
-
-1. 先捕获成图，
-2. 再在图上做优化，
-3. 最后生成更高效的 GPU kernel。
-
-### 8.4 对这份 MLP 脚本的结论
-
-这个脚本虽然很短，但它已经完整展示了 PyTorch 2.x 编译体系的关键链路：
-
-- Python 模型
-- TorchDynamo tracing
-- FX Graph 中间表示
-- AOTAutograd 拆分前后向
-- TorchInductor 优化与代码生成
-- autotune / cache / fusion
-
-所以它是一个非常适合拿来理解“计算图优化”的最小例子。
-
----
-
-## 附：本次调试命令
+除调试产物外，还可通过 `TORCH_LOGS` 控制终端日志输出级别：
 
 ```bash
-TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python3 l8-mlp.py 2>&1 | tee run.log
+TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python3 lec8-mlp.py 2>&1 | tee run.log
 ```
 
-如果想只看更完整的 debug 目录，可以直接搜索：
+- `TORCH_LOGS="+dynamo,+inductor"`：打印 Dynamo 和 Inductor 的详细编译过程。
+- `TORCH_COMPILE_DEBUG=1`：导出完整调试产物到 `torch_compile_debug/`。
+- `tee run.log`：同时输出到终端和文件，方便回放。
 
-- `code/torch_compile_debug/run_2026_05_05_14_25_21_889084-pid_14363/torchdynamo/debug.log`
-- `code/torch_compile_debug/run_2026_05_05_14_25_21_889084-pid_14363/torchinductor/`
+终端日志中常见的信号：
 
-如果后续再跑一次，目录名里的时间戳和 pid 会变化，但结构基本不变。
+```text
+Loading 1 statically launchable autotuners       # Inductor 介入编译，加载 autotuner
+fx graph cache hit for key ...                    # 计算图命中缓存，跳过重编译
+Step 2: done compiler function inductor           # Inductor 编译完成
+Bailing out TritonBundler.read_and_emit ...       # 输出目录已有内容，跳过重复导出
+```
+
+终端日志适合回答的问题：有没有成功捕获到图？有没有 graph break？编译器有没有命中缓存？某个优化步骤是否被跳过？
+
+### 7.4 缓存机制
+
+TorchInductor 会根据计算图的 hash 命中缓存。首次运行时生成完整的 Triton kernel 并存入全局缓存目录（如 `/tmp/torchinductor_$USER/`）；后续运行若计算图不变，则直接复用缓存的 kernel，跳过昂贵的 Triton 编译过程。这也是有时 `torch_compile_debug` 目录下 `output_code.py` 缺失或为空的原因——Inductor 命中缓存后直接从全局缓存目录加载，不再重新导出。
 
 ---
 
-## 13. 补充：预热、cuBLAS 与 Autotune 搜索机制
+## 8. max_autotune_gemm 警告说明
 
-### 13.1 预热（Warmup）
+运行本实验脚本时，终端可能出现如下警告：
 
-**什么是预热**：第一次运行时，GPU 需要初始化 CUDA context、加载 kernel、分配显存，导致第一次特别慢。
+```text
+Not enough SMs to use max_autotune_gemm mode
+```
+
+### 8.1 含义
+
+SM（Streaming Multiprocessor）是 GPU 中负责并行计算的基本执行单元。该警告的含义是：**当前 GPU 的 SM 数量不够大，或当前 GEMM（矩阵乘法）任务不够大，不值得进入最激进的 `max_autotune_gemm` 调优模式**。
+
+调优模式越激进，意味着：
+
+- 会搜索更多 kernel 变体；
+- 会花更多编译时间和 autotune 时间；
+- 只有当任务足够大、收益足够明显时才值得。
+
+### 8.2 为什么小 MLP 容易触发
+
+本实验脚本是一个很小的 MLP（batch size = 128，hidden = 64，两个矩阵乘法的形状都不大）。这种场景下，编译器更容易判断：`max_autotune_gemm` 的收益不一定值得其代价，直接走较保守、较稳定的路径更合适。
+
+### 8.3 本质
+
+该提示：
+
+- **不是报错**，也不是失败；
+- 而是 Inductor 主动做出的策略选择——"不启用最重的搜索模式"。
+
+它暗示的是一个折中：追求极致性能（开启更激进的 autotune，编译更慢但运行更快）与追求稳定和更快编译（跳过激进搜索，直接用保守策略）之间的权衡。对于小模型，保守策略通常是合理的。
+
+---
+
+## 9. 性能分析工具：nsys
+
+在 Linux 环境下，可以使用 NVIDIA 提供的 profiling 工具获取程序运行统计信息，分析性能瓶颈。常用工具是 **nsys（NVIDIA Nsight Systems）**，可统计 CPU/GPU 时间开销占比、kernel 调度等信息。
+
+### 9.1 安装与使用
+
+```bash
+sudo apt install nvidia-cuda-toolkit    # 通常随 CUDA Toolkit 安装
+
+nsys profile python3 lec8-mlp.py        # 执行后生成 .nsys-rep 文件
+nsys stats report.qdrep                 # 查看摘要
+```
+
+### 9.2 关键统计信息
+
+```text
+** CUDA API Summary (cudaapisum):
+Time(%)  Total(ns)   Calls   Avg(ns)   Name
+--------------------------------------------------------
+  84.7   1.88e8      11010   1.71e4    cudaLaunchKernel
+   6.3   1.40e7       2000   7.00e3    cuLaunchKernel
+   ...
+
+** CUDA GPU Kernel Summary (gpukernsum):
+Time(%)  Total(ns)   Inst    Avg(ns)   Kernel
+--------------------------------------------------------
+   7.9   3.08e6       1000   3.07e3    gemvx
+   7.0   2.72e6       1000   2.72e3    gemm (cublas)
+   6.3   2.43e6        500   4.86e3    reduce_kernel
+   6.1   2.35e6       1000   2.35e3    triton_
+   ...
+```
+
+从上述统计结果可以观察到：
+
+- `cudaLaunchKernel` 调用占据了绝大部分 CUDA API 时间（84.7%），每次调用平均开销约 17 μs。
+- 大量 kernel 的执行时间仅为 2～5 μs，低于其调度开销，导致 GPU 计算资源未能充分利用。
+
+这一现象正是算子融合要解决的问题：通过减少 kernel 数量，降低 launch 开销与访存开销。
+
+---
+
+## 10. 预热、cuBLAS 与 Autotune 搜索
+
+### 10.1 预热（Warmup）
+
+第一次运行时，GPU 需要初始化 CUDA context、加载 kernel、分配显存，导致首次执行特别慢。性能测试时通常先进行预热：
 
 ```python
 # 典型的 benchmark 模式
@@ -703,54 +596,36 @@ torch.cuda.synchronize()
 end = time.time()
 ```
 
-**为什么需要预热**：
-- CUDA context 初始化：首次调用 CUDA API 时，驱动需要初始化
-- Kernel 编译：Triton JIT 编译发生在首次调用时
-- 显存分配：首次分配显存有额外开销
-- 缓存预热：L2 cache、TLB 需要预热
+需要预热的原因包括：CUDA context 初始化（首次调用 CUDA API 时驱动需初始化）、Kernel 编译（Triton JIT 编译发生在首次调用时）、显存分配（首次分配有额外开销）、缓存预热（L2 cache、TLB 需预热）。
 
-**torch.compile 的预热**：
+`torch.compile` 的预热同样体现在首次调用：
+
 ```python
 model = torch.compile(model)
-
 # 第一次调用：触发编译 + 预热（慢）
 output = model(input)
-
-# 后续调用：直接用编译好的 kernel（快）
+# 后续调用：直接使用编译好的 kernel（快）
 output = model(input)
 ```
 
-### 13.2 cuBLAS
+### 10.2 cuBLAS
 
-**什么是 cuBLAS**：NVIDIA 官方的 BLAS（Basic Linear Algebra Subprograms）库，提供高度优化的矩阵运算。
+cuBLAS 是 NVIDIA 官方的 BLAS（Basic Linear Algebra Subprograms）库，提供高度优化的矩阵运算。PyTorch 底层自动调用 cuBLAS：
 
-**cuBLAS vs 手写 CUDA**：
-
-| 方面 | cuBLAS | 手写 CUDA |
-|------|--------|----------|
-| 性能 | 接近硬件极限 | 取决于实现 |
-| 易用性 | API 调用 | 需要写 kernel |
-| 灵活性 | 固定接口 | 完全可控 |
-| 适用场景 | 标准矩阵运算 | 自定义算子 |
-
-**cuBLAS 在 PyTorch 中的使用**：
 ```python
-# PyTorch 底层自动调用 cuBLAS
 torch.mm(A, B)        # 矩阵乘法
 torch.matmul(A, B)    # 批量矩阵乘法
 F.linear(x, weight)   # 线性层 = matmul + bias
 ```
 
-**cuBLASLt**：cuBLAS 的轻量级版本，支持更多定制化配置
-- 可以指定算法选择
-- 支持融合 epilogue（如 matmul + bias + relu）
-- 更适合 autotune 场景
+**cuBLASLt** 是 cuBLAS 的轻量级版本，支持更多定制化配置：可指定算法选择、支持融合 epilogue（如 matmul + bias + relu）、更适合 autotune 场景。
 
-### 13.3 Autotune 搜索范围与方式
+### 10.3 Autotune 搜索
 
-**搜索的参数**：
+Autotune 的目标是找到最优的 kernel 配置，主要包括：
+
 ```python
-# GEMM 相关
+# GEMM 相关搜索参数
 BLOCK_SIZE_M: 64, 128, 256      # 矩阵分块大小
 BLOCK_SIZE_N: 64, 128, 256
 BLOCK_SIZE_K: 32, 64, 128
@@ -762,63 +637,8 @@ XBLOCK: 64, 128, 256, 512, 1024
 num_warps: 2, 4, 8
 ```
 
-**搜索方式**：
+`torch.compile` 中的模式选择：
 
-#### 方式 1：Grid Search（网格搜索）
-```python
-# 遍历所有组合
-for bm in [64, 128, 256]:
-    for bn in [64, 128, 256]:
-        for bk in [32, 64, 128]:
-            for nw in [2, 4, 8]:
-                config = (bm, bn, bk, nw)
-                time = benchmark(config)
-                # 记录最优
-```
-- 优点：保证找到最优
-- 缺点：组合爆炸，耗时长
-
-#### 方式 2：Beam Search（束搜索）
-```python
-# 先粗搜，再细搜
-configs_level1 = [(64,64,32), (128,128,64), (256,256,128)]
-best_l1 = benchmark_and_select(configs_level1)
-
-# 在最优配置附近细搜
-configs_level2 = perturb(best_l1, radius=1)
-best_l2 = benchmark_and_select(configs_level2)
-```
-- 优点：搜索效率高
-- 缺点：可能错过全局最优
-
-#### 方式 3：Bayesian Optimization（贝叶斯优化）
-```python
-# 用概率模型指导搜索
-optimizer = BayesianOptimizer(search_space)
-for _ in range(num_trials):
-    config = optimizer.suggest()
-    time = benchmark(config)
-    optimizer.observe(config, time)
-```
-- 优点：样本效率高
-- 缺点：实现复杂
-
-**Triton 的 autotune 实现**：
-```python
-@triton.autotune(
-    configs=[
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 64}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 256, 'BLOCK_K': 32}, num_warps=4, num_stages=2),
-        # ... 更多配置
-    ],
-    key=['M', 'N', 'K'],  # 根据矩阵形状选择配置
-    # 搜索方式：默认是 benchmark 所有配置
-)
-def matmul_kernel(...):
-    ...
-```
-
-**torch.compile 中的 autotune 模式**：
 ```python
 # mode="default"：保守策略，快速编译
 model = torch.compile(model, mode="default")
@@ -827,59 +647,121 @@ model = torch.compile(model, mode="default")
 model = torch.compile(model, mode="max-autotune")
 ```
 
-**max-autotune 的额外搜索**：
-- 会尝试更多 GEMM 算法（来自 cuBLAS/cuBLASLt）
-- 会尝试更多 Triton kernel 配置
-- 编译时间更长，但运行时可能更快
+`max-autotune` 会尝试更多 GEMM 算法（来自 cuBLAS/cuBLASLt）和更多 Triton kernel 配置，编译时间更长但运行时可能更快。当 GPU SM 数量不足或矩阵太小时，编译器自动降级到保守策略，即触发前述 `Not enough SMs` 警告。
 
-**Not enough SMs 警告**：
-```
-Not enough SMs to use max_autotune_gemm mode
-```
-- 当 GPU SM 数量不足或矩阵太小时触发
-- 编译器自动降级到保守策略
-- 不是错误，是策略选择
+---
 
-### 13.4 实际 Benchmark 示例
+## 11. 关键知识点总结
+
+### 11.1 计算图与图优化
+
+深度学习模型的前向与反向过程可以抽象为有向无环图（DAG）：节点表示算子，边表示张量依赖。只要控制流足够稳定，就能把运行时行为提成图进行优化。
+
+图优化的目标不是改变语义，而是在语义不变的前提下提高性能：
+
+- 算子融合
+- 中间结果复用
+- 减少内存访问
+- 降低 kernel launch 开销
+
+### 11.2 算子融合的意义
+
+算子融合不改变数学公式，核心是**减少 Global Memory 的读写次数，让中间结果尽量留在寄存器里**。对显存带宽受限（Memory Bound）的 GPU 计算，这比单纯提高算力收益更大。
+
+### 11.3 编译流水线的完整链路
+
+本实验的 MLP 脚本虽然简短，但已完整展示了 PyTorch 2.x 编译体系的关键链路：
+
+```
+Python 模型 → TorchDynamo tracing → FX Graph 中间表示
+→ AOTAutograd 拆分前后向 → TorchInductor 优化与代码生成
+→ autotune / cache / fusion → Triton Kernel → GPU 执行
+```
+
+### 11.4 调试产物的阅读路径
+
+| 观察目标 | 推荐查阅的产物 |
+|---------|--------------|
+| 编译过程本身 | `run.log`、`torchdynamo/debug.log` |
+| 原始算子序列 | `fx_graph_readable.py` |
+| 图变换结果 | `fx_graph_transformed.py` |
+| 算子融合过程 | `ir_pre_fusion.txt` → `ir_post_fusion.txt` |
+| 最终执行代码 | `output_code.py` |
+
+---
+
+## 12. 课后练习
+
+### 练习 1：观察缓存命中
+
+1. 清理缓存：`rm -rf /tmp/torchinductor_$(whoami)`
+2. 首次运行，观察 `torch_compile_debug` 中生成完整文件（包括 `output_code.py`）：
+   ```bash
+   TORCH_COMPILE_DEBUG=1 python3 lec8-mlp.py
+   ```
+3. 立即再次运行相同命令，检查新生成的 `torch_compile_debug/run_*` 目录中的 `output_code.py`——可能会发现空文件或被截断的内容。
+4. 查阅两次运行的终端日志，找出含 `fx graph cache hit` 或 `Bailing out TritonBundler.read_and_emit` 的行，分析 PyTorch 如何避免对不变的计算图重复进行昂贵的 Triton 编译。
+
+### 练习 2：解读 output_code.py 的性能优化
+
+打开 [output_code.py](output_code.py) 或 [example_debug_artifacts/model__0_forward_1.0/output_code.py](example_debug_artifacts/model__0_forward_1.0/output_code.py)：
+
+1. 找出代表 Triton Kernel 的函数（形如 `def triton_poi_fused_add_relu_...`）。
+2. 分析该单一 Kernel 中执行了哪两步数学操作。
+3. 假设没有这套代码自动生成工具，作为开发者需要手写几个 Kernel？需要多少次 Global Memory 的读写？计算粗略的节省比例。
+
+### 练习 3：多层 MLP 的编译优化
+
+对下列三层 MLP 模型应用 `torch.compile` 进行编译优化，并分析性能表现：
 
 ```python
-import torch
-import time
+class MLP(nn.Module):
+    def __init__(self, feature=1, hidden=1024):
+        super().__init__()
+        self.w1 = nn.Parameter(torch.randn(feature, hidden))
+        self.b1 = nn.Parameter(torch.randn(hidden))
+        self.w2 = nn.Parameter(torch.randn(hidden, hidden))
+        self.b2 = nn.Parameter(torch.randn(hidden))
+        self.w3 = nn.Parameter(torch.randn(hidden, 1))
+        self.b3 = nn.Parameter(torch.randn(1))
 
-def benchmark_fn(fn, input, warmup=5, repeats=100):
-    # 预热
-    for _ in range(warmup):
-        fn(input)
-    torch.cuda.synchronize()
-    
-    # 计时
-    start = time.time()
-    for _ in range(repeats):
-        fn(input)
-    torch.cuda.synchronize()
-    end = time.time()
-    
-    return (end - start) / repeats * 1000  # ms
-
-# 对比不同配置
-input = torch.randn(128, 64, device='cuda')
-
-# 1. 朴素实现
-def naive(x):
-    return torch.mm(x, weight) + bias
-
-# 2. compile default
-model_default = torch.compile(model, mode="default")
-
-# 3. compile max-autotune
-model_max = torch.compile(model, mode="max-autotune")
-
-# Benchmark
-time_naive = benchmark_fn(naive, input)
-time_default = benchmark_fn(model_default, input)
-time_max = benchmark_fn(model_max, input)
-
-print(f"Naive: {time_naive:.3f} ms")
-print(f"Default: {time_default:.3f} ms")
-print(f"Max-autotune: {time_max:.3f} ms")
+    def forward(self, x):
+        x = x @ self.w1 + self.b1
+        x = torch.relu(x)
+        x = x @ self.w2 + self.b2
+        x = torch.relu(x)
+        x = x @ self.w3 + self.b3
+        return x
 ```
+
+- 在不同 batch size（如 128、1024、4096）下测量运行时间，对比优化前后的性能变化。
+- 使用 nsys 进行 profiling，分析小 batch size 下优化效果不明显的原因。
+
+---
+
+## 附：常用调试命令
+
+```bash
+# 完整调试输出
+TORCH_LOGS="+dynamo,+inductor" TORCH_COMPILE_DEBUG=1 python3 lec8-mlp.py 2>&1 | tee run.log
+
+# 仅导出调试目录
+TORCH_COMPILE_DEBUG=1 python3 lec8-mlp.py
+
+# 性能分析
+nsys profile python3 lec8-mlp.py
+```
+
+
+---
+
+## 附录：代码文件索引
+
+| 文件 | 说明 |
+|------|------|
+| `lec8-mlp.py` | MLP 模型 + `torch.compile` 编译实验（本目录） |
+| `output_code.py` | Inductor 生成的 Triton kernel（编译产物） |
+| `code/l8-mlp.py` | 仓库根目录对应代码 |
+| `code/l8-benchmark.py` | 算子融合性能基准测试 |
+| `code/l8-linear.py` | 单层线性模型融合分析 |
+| `notes/L8-算子融合.pdf` | 课程讲义原文 |

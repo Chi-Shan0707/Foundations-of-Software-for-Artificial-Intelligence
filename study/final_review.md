@@ -59,6 +59,48 @@
 
 ---
 
+## 课程设计哲学：三条贯穿始终的主线
+
+在深入各模块细节之前，先把握三条在七个模块中反复出现的设计原则。理解它们，就能在看任何具体技术时判断"它在解决哪一类问题"。
+
+### 主线一：减少不必要的数据搬运
+
+从 Python 到 GPU，每一层内存的速度差都是一个数量级以上。整门课的优化有一半在回答同一个问题：数据能不能少搬一次？
+
+| 出现位置 | 具体手段 | 搬运了什么 → 省掉了什么 |
+|---------|---------|----------------------|
+| 模块一 C 扩展 | ctypes 调 .so，释放 GIL | 省掉 Python 对象的反复装箱/拆箱 |
+| 模块五 Inductor | 算子融合 mul+add+relu → 一个 kernel | 省掉中间张量写回 HBM 再读出 |
+| 模块六 FlashAttention | SRAM 分块 + Online Softmax | 省掉 N×N 注意力矩阵在 HBM 的物化 |
+| 模块七 Pipeline | 1F1B 调度 | 省掉所有 micro-batch 激活值同时驻留 |
+
+### 主线二：用切换掩盖延迟
+
+当一项操作在等待（等 I/O、等内存、等前一层算完），不要干等——切到另一件独立的工作上。这个思想从 CPU 一路贯穿到 GPU 再到分布式：
+
+| 出现位置 | 等什么 | 切换到什么 | 谁负责切换 |
+|---------|-------|-----------|----------|
+| 模块一 协程 | I/O 就绪 | 另一个协程 | 事件循环（软件） |
+| 模块三 Warp 调度 | 全局内存读取 | 另一个 Warp | GPU 硬件（零开销） |
+| 模块七 Pipeline | 前一层的反向传播 | 下一 micro-batch 的前向 | 调度器（1F1B） |
+
+### 主线三：逐层提升抽象，把复杂性推给编译器
+
+这门课的七个模块本身就是一条抽象阶梯，每上一层，程序员需要关心的粒度就更粗：
+
+```
+程序员视角                    关心什么               代表技术
+─────────────────────────────────────────────────────────────────
+Thread 级      ← 每个线程算哪个元素        CUDA C++（模块三）
+Block 级       ← 每个 Block 算哪一块       Triton（模块四）
+Graph 级       ← 整张计算图的算子关系       torch.compile（模块五）
+Cluster 级     ← 多卡怎么切               3D Parallel（模块七）
+```
+
+每层的编译器/运行时负责把高层意图展开为底层调度。Triton 把 Block 展开为 Warp/Thread，Inductor 把 Graph 展开为 Triton kernel，DDP 把单卡训练展开为多卡同步。抽象越高，手动优化的空间越小，但开发效率越高——这是整门课隐含的工程权衡。
+
+---
+
 # 模块一：Python 底层执行机制与高并发模型（CPU 域）
 
 ## 核心命题：如何突破单核物理限制与 GIL 的束缚？
@@ -2299,12 +2341,65 @@ for 循环             →    tl.arange + 并行
 
 ---
 
+## 【七个模块的核心命题与一句话总结】
+
+| 模块 | 核心命题 | 一句话 |
+|------|---------|-------|
+| 一 Python 底层 | 如何突破单核与 GIL 的束缚？ | GIL 保护单条字节码，不保护复合操作；多进程绕 GIL，协程靠让权 |
+| 二 Python↔Native | 如何让解释型语言获得编译型性能？ | 装饰器拦截 AST，把 Python 表达式路由到 C 函数或 GPU kernel |
+| 三 GPU 体系结构 | 如何用轻量线程掩盖内存延迟？ | SIMT 锁步 + Warp 零开销切换，用并发度淹没访存延迟 |
+| 四 Triton 算子 | 如何把 2D 逻辑块映射到 1D 显存？ | Block 级编程 + 二维指针广播，程序员不管 Thread |
+| 五 Inductor 融合 | 如何消除访存瓶颈？ | TorchDynamo 捕获图 → Inductor 模式匹配 → 融合成 Triton kernel |
+| 六 FlashAttention | 如何突破 SRAM 与碎片化显存？ | 分块在 SRAM 内算完，Online Softmax 保证全局精确，中间矩阵不落 HBM |
+| 七 3D 分布式 | 千亿参数下算力/显存/带宽如何博弈？ | DP 切数据、TP 切矩阵、PP 切层，三者正交组合 |
+
+## 【性能瓶颈的转移：这门课的隐含叙事】
+
+这七个模块不是孤立的，它们串成了一条"瓶颈转移"的叙事线——每解决一个瓶颈，下一个就浮出水面：
+
+```
+① Python 太慢
+   ↓ 解决：C 扩展 / Numba JIT（模块二）
+② 单核不够
+   ↓ 解决：多进程 / 协程（模块一）
+③ CPU 算矩阵太慢
+   ↓ 解决：GPU SIMT 大规模并行（模块三）
+④ CUDA 手写太复杂
+   ↓ 解决：Triton Block 级抽象（模块四）
+⑤ 算子逐个执行，中间结果反复读写 HBM
+   ↓ 解决：Inductor 自动算子融合（模块五）
+⑥ Attention 的 N×N 矩阵爆显存
+   ↓ 解决：FlashAttention SRAM 分块（模块六）
+⑦ 单卡装不下千亿参数
+   ↓ 解决：3D 并行 DP+TP+PP（模块七）
+```
+
+每一步都是：**当前的抽象层级成为了瓶颈 → 引入更底层的机制突破它 → 新机制带来新的复杂性 → 用更高层的抽象封装它**。这个循环就是 AI 系统工程的核心节奏。
+
+## 【抽象阶梯：同一段代码在七层中的形态】
+
+以 `y = relu(x @ W + b)` 为例，这段代码在不同模块的视角下被拆解为完全不同的东西：
+
+```
+模块一（PVM）：    LOAD_FAST x → LOAD_FAST W → BINARY_OP @ → ...
+模块二（AST）：    BinOp(Call(relu), BinOp(BinOp(x, @, W), +, b))
+模块三（GPU）：    cuBLAS GEMM kernel → elementwise add → ReLU kernel（3 次访存）
+模块四（Triton）：  如果手写：一个 kernel 里 tl.dot → += b → maximum(0, _)（1 次访存）
+模块五（Inductor）：  torch.compile 自动做上述融合，生成 triton_poi_fused_add_relu_0
+模块六（FlashAttn）：  如果 x@W 是 Q@K → 不写出 N×N 矩阵，SRAM 分块累加
+模块七（分布式）：    W 被列切到 4 张卡 → 各卡算 partial → AllReduce 拼回
+```
+
+同一行 Python 代码，经过七层透镜折射出七种形态。理解这些折射规则，就是这门课的全部目标。
+
+---
+
 # 附录：核心代码索引
 
 | 文件 | 模块 | 内容 |
 |---|---|---|
-| `study/lec4/03_with_lock.py` | 模块一 | 线程竞态与锁（无锁/不同锁/同一把锁） |
-| `study/lec4/06_coroutine_race.py` | 模块一 | 协程竞态与 asyncio.Lock |
+| `study/lec4/lec4-03_with_lock.py` | 模块一 | 线程竞态与锁（无锁/不同锁/同一把锁） |
+| `study/lec4/lec4-06_coroutine_race.py` | 模块一 | 协程竞态与 asyncio.Lock |
 | `code/l3-3-deco.py` | 模块二 | @kernel 装饰器：AST → C 函数调用 |
 | `code/l7-vecmul.py` | 模块四 | Triton 向量乘法（最简 kernel） |
 | `code/l7-autotune.py` | 模块四 | Triton matmul + @triton.autotune |

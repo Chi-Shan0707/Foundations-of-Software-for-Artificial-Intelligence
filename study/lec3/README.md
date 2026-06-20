@@ -139,7 +139,7 @@ NumPy Array (连续内存)
 
 ```bash
 # 编译 C 代码
-gcc -O3 -shared -fPIC -o libdot.so l3-1-bench_dot.c
+gcc -O3 -shared -fPIC -o libdot.so lec3-bench_dot.c
 
 # 选项说明
 # -O3:     最高优化级别
@@ -323,7 +323,7 @@ print(dot_numba.inspect_asm())
 ### 6.1 自定义装饰器示例
 
 ```python
-# l3-3-deco.py
+# lec3-deco.py
 
 def kernel(func):
     """
@@ -456,17 +456,16 @@ conda env export > environment.yml
 
 ---
 
-## 8. 文件清单
+## 附录：代码文件索引
 
 | 文件 | 说明 |
 |------|------|
-| `dot_product.cpp` | C++ 点积实现（含命令行注释） |
-| `bench.py` | Python 基准测试框架 |
-| `l3-1-bench_dot.c` | C 点积实现 |
-| `l3-1-bench_dot.py` | Python ctypes 调用示例 |
-| `l3-2-bench_numba.py` | Numba JIT 示例 |
-| `l3-3-deco.py` | 自定义装饰器 DSL 示例 |
-| `l3-3-vec.c` | 向量操作 C 实现 |
+| `lec3-dot_product.cpp` | C++ 点积实现（含命令行注释） |
+| `lec3-bench_dot.c` | C 点积实现 |
+| `lec3-bench_dot.py` | Python ctypes 调用示例 + 基准测试框架 |
+| `lec3-bench_numba.py` | Numba JIT 示例 |
+| `lec3-deco.py` | 自定义装饰器 DSL 示例 |
+| `lec3-vec.c` | 向量操作 C 实现 |
 
 ---
 

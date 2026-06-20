@@ -42,3 +42,6 @@ study/lec*/
 !study/lec*/
 study/lec*/*
 !study/lec*/README.md
+
+# PDF reference text (working files, not for committing)
+study/.pdf_ref/

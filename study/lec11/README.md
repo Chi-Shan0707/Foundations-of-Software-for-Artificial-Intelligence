@@ -572,8 +572,6 @@ netstat -ant | grep 8000
 | 文件 | 说明 |
 |------|------|
 | `code/l11-kaggle-vllm.ipynb` | vLLM 推理部署示例（Kaggle 环境） |
-| `study/lec11/lec11.md` | 课堂笔记详细版 |
-| `study/lec11/transcript.md` | 课堂转录与智能总结 |
 | `notes/L11-大模型推理.pdf` | 课程讲义原文 |
 
 ---

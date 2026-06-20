@@ -235,6 +235,35 @@ t2: 写 cnt=1               ← t2 的覆盖了 t1 的增量！
      （其他线程可能在此期间修改数据）
 ```
 
+**GIL 的保护粒度：单条字节码，不是整个操作**
+
+GIL（Global Interpreter Lock）保证任意时刻只有一个线程执行 Python 字节码。但关键在于：GIL 保护的是**单条字节码**的原子性，而非多条字节码组成的复合操作。
+
+`n = n + 1` 在字节码层面被拆解为四条指令：
+
+```
+LOAD_GLOBAL  n    # 读取 n 的当前值到栈顶
+LOAD_CONST   1    # 加载常量 1
+INPLACE_ADD      # 栈顶两值相加
+STORE_GLOBAL n   # 将结果写回 n
+```
+
+GIL 确保每一条指令完整执行，但线程切换可能发生在**任意两条指令之间**。这就是数据竞争的根本原因：
+
+```
+时间线（n 初始为 0，线程 A 和 B 都执行 n = n + 1）：
+
+线程 A: LOAD_GLOBAL n → 读到 0
+        ↑ 线程切换！GIL 被转交
+线程 B: LOAD_GLOBAL n → 读到 0（A 还没写回）
+        LOAD_CONST 1 → INPLACE_ADD → STORE_GLOBAL n → n = 1
+        ↑ 线程切换！GIL 回到 A
+线程 A: LOAD_CONST 1 → INPLACE_ADD → STORE_GLOBAL n → n = 1（覆盖了 B 的更新）
+
+最终 n = 1，丢失了一次更新。
+```
+
+
 **`sleep()` 的作用**：
 
 - 不加 `sleep`：竞态窗口很短，结果"经常"是 20，但不保证
@@ -352,6 +381,10 @@ if __name__ == "__main__":
 
     for i in range(2):
         p = multiprocessing.Process(target=worker, args=(f"p{i}",))
+
+        # 这里传入的参数需要时元组，所以必须补一个逗号
+        # 即便这里传了  ，所谓”主进程“的全局变量，那么，到def里头也还是一个”右值“传进去
+
         processes.append(p)
         p.start()
 
@@ -509,6 +542,9 @@ c2: 读 counter=0 → old=0      ← await 时切换到 c2
 c2: 写 counter=1
 c1: 写 counter=1              ← c1 恢复，覆盖了 c2 的更新！
 ```
+
+> . 协程 (Asyncio) 是 讲礼貌的“协作式调度” (Cooperative)。如果我们不加上这个`wait asyncio.sleep(0) `，就什么也不会发生。 是我们人为"纵容“了切换。
+
 
 ### 5.5 协程的同步：asyncio.Lock
 
@@ -707,32 +743,32 @@ NumPy (BLAS):          0.01s
 cd study/lec4/
 
 # 按顺序运行样例
-python 01_simple_thread.py
-python 02_data_race.py
-python 03_with_lock.py
-python 04_multiprocessing.py
-python 05_coroutine_basic.py
-python 06_coroutine_race.py
+python lec4-01_thread.py
+python lec4-02_data_race.py
+python lec4-03_with_lock.py
+python lec4-04_multiprocessing.py
+python lec4-05_coroutine.py
+python lec4-06_coroutine_race.py
 ```
 
 ### 8.2 样例清单
 
 | 文件 | 主题 | 演示内容 | 运行命令 |
 |------|------|----------|----------|
-| **01_simple_thread.py** | 线程基础 | 创建、启动、join() | `python 01_simple_thread.py` |
-| **02_data_race.py** | 数据竞态 | 共享变量冲突 | `python 02_data_race.py` |
-| **03_with_lock.py** | 锁机制 | 无锁 vs 有锁对比 | `python 03_with_lock.py` |
-| **04_multiprocessing.py** | 进程隔离 | 内存隔离、IPC | `python 04_multiprocessing.py` |
-| **05_coroutine_basic.py** | 协程基础 | async/await、并发 | `python 05_coroutine_basic.py` |
-| **06_coroutine_race.py** | 协程竞态 | 协程锁、轮询 vs 事件 | `python 06_coroutine_race.py` |
-| **07_matmul_benchmark.py** | 性能测试 | Python vs C+OpenMP | 需先编译 C 代码 |
+| **lec4-01_thread.py** | 线程基础 | 创建、启动、join() | `python lec4-01_thread.py` |
+| **lec4-02_data_race.py** | 数据竞态 | 共享变量冲突 | `python lec4-02_data_race.py` |
+| **lec4-03_with_lock.py** | 锁机制 | 无锁 vs 有锁对比 | `python lec4-03_with_lock.py` |
+| **lec4-04_multiprocessing.py** | 进程隔离 | 内存隔离、IPC | `python lec4-04_multiprocessing.py` |
+| **lec4-05_coroutine.py** | 协程基础 | async/await、并发 | `python lec4-05_coroutine.py` |
+| **lec4-06_coroutine_race.py** | 协程竞态 | 协程锁、轮询 vs 事件 | `python lec4-06_coroutine_race.py` |
+| **lec4-07_matmul_bench.py** | 性能测试 | Python vs C+OpenMP | 需先编译 C 代码 |
 
 ### 8.3 详细的样例说明
 
-#### 01_simple_thread.py - 线程基础
+#### lec4-01_thread.py - 线程基础
 
 ```bash
-python 01_simple_thread.py
+python lec4-01_thread.py
 ```
 
 **输出示例**：
@@ -753,10 +789,10 @@ python 01_simple_thread.py
 
 ---
 
-#### 02_data_race.py - 数据竞态演示
+#### lec4-02_data_race.py - 数据竞态演示
 
 ```bash
-python 02_data_race.py
+python lec4-02_data_race.py
 ```
 
 **输出示例**：
@@ -783,10 +819,10 @@ python 02_data_race.py
 
 ---
 
-#### 03_with_lock.py - 使用锁解决竞态
+#### lec4-03_with_lock.py - 使用锁解决竞态
 
 ```bash
-python 03_with_lock.py
+python lec4-03_with_lock.py
 ```
 
 **输出示例**：
@@ -812,10 +848,10 @@ python 03_with_lock.py
 
 ---
 
-#### 04_multiprocessing.py - 进程内存隔离
+#### lec4-04_multiprocessing.py - 进程内存隔离
 
 ```bash
-python 04_multiprocessing.py
+python lec4-04_multiprocessing.py
 ```
 
 **输出示例**：
@@ -847,10 +883,10 @@ python 04_multiprocessing.py
 
 ---
 
-#### 05_coroutine_basic.py - 协程基础
+#### lec4-05_coroutine.py - 协程基础
 
 ```bash
-python 05_coroutine_basic.py
+python lec4-05_coroutine.py
 ```
 
 **输出示例**：
@@ -880,10 +916,10 @@ python 05_coroutine_basic.py
 
 ---
 
-#### 06_coroutine_race.py - 协程竞态与同步
+#### lec4-06_coroutine_race.py - 协程竞态与同步
 
 ```bash
-python 06_coroutine_race.py
+python lec4-06_coroutine_race.py
 ```
 
 **输出示例**：
@@ -918,7 +954,7 @@ python 06_coroutine_race.py
 
 ---
 
-#### 07_matmul_benchmark.py - 矩阵乘法性能测试
+#### lec4-07_matmul_bench.py - 矩阵乘法性能测试
 
 **前置步骤**：编译 C 代码
 
@@ -936,7 +972,7 @@ cd ../study/lec4/
 **运行测试**：
 
 ```bash
-python 07_matmul_benchmark.py
+python lec4-07_matmul_bench.py
 ```
 
 **输出示例**：
@@ -971,23 +1007,17 @@ C 实现正确:      ✓
 
 ---
 
-### 8.4 其他参考文件
+### 8.4 补充说明
 
-| 文件 | 说明 | 使用场景 |
-|------|------|----------|
-| `concurrency_demo.py` | 完整的线程竞态示例（含 3 种情况） | 理解不同锁配置的效果 |
-| `multiprocessing_demo.py` | 进程演示（完整版） | 理解进程隔离 |
-| `coroutine_demo.py` | 协程演示（完整版） | 理解协程竞态和轮询 |
-| `lec4.md` | 补充说明文档 | 深入理解 join()、协程等概念 |
-| `transcript.md` | 课堂实录 | 参考老师讲课内容 |
+所有示例代码均以 `lec4-NN_*.py` 命名（见 8.1–8.3 节）。多线程部分的三种情况（无锁、带锁、带锁+sleep）集中在 `lec4-03_with_lock.py` 中，可通过修改 `LOCK_MODE` 参数切换。
 
 ---
 
 ### 8.5 环境要求
 
 - Python 3.7+
-- 依赖包：`numpy`（仅 07_matmul_benchmark.py 需要）
-- gcc 编译器（仅 07_matmul_benchmark.py 需要）
+- 依赖包：`numpy`（仅 lec4-07_matmul_bench.py 需要）
+- gcc 编译器（仅 lec4-07_matmul_bench.py 需要）
 - OpenMP 支持（gcc 默认支持）
 
 安装依赖：
@@ -999,7 +1029,7 @@ pip install numpy
 
 ### 8.6 常见问题
 
-**Q1: 02_data_race.py 运行结果总是 20，为什么？**
+**Q1: lec4-02_data_race.py 运行结果总是 20，为什么？**
 
 A: 竞态窗口太小，冲突概率低。取消 `time.sleep(0.00001)` 的注释可以放大竞态窗口。
 
@@ -1007,7 +1037,7 @@ A: 竞态窗口太小，冲突概率低。取消 `time.sleep(0.00001)` 的注释
 
 A: 确保代码在 `if __name__ == "__main__"` 下运行。
 
-**Q3: 07_matmul_benchmark.py 提示找不到 libmatmul.so？**
+**Q3: lec4-07_matmul_bench.py 提示找不到 libmatmul.so？**
 
 A: 需要先编译 C 代码：
 ```bash
@@ -1017,19 +1047,14 @@ gcc -O3 -fopenmp -shared -fPIC -o libmatmul.so l4-matmul.c
 
 ---
 
-## 9. 代码文件清单
+## 附录：代码文件索引
 
 | 文件 | 说明 |
 |------|------|
-| `01_simple_thread.py` | 线程基础示例 |
-| `02_data_race.py` | 数据竞态演示 |
-| `03_with_lock.py` | 锁机制演示 |
-| `04_multiprocessing.py` | 进程内存隔离演示 |
-| `05_coroutine_basic.py` | 协程基础 |
-| `06_coroutine_race.py` | 协程竞态与同步 |
-| `07_matmul_benchmark.py` | 矩阵乘法性能测试 |
-| `concurrency_demo.py` | 线程竞态与锁的完整示例 |
-| `multiprocessing_demo.py` | 进程内存隔离演示 |
-| `coroutine_demo.py` | 协程竞态与轮询示例 |
-| `lec4.md` | 补充说明文档 |
-| `transcript.md` | 课堂实录 |
+| `lec4-01_thread.py` | 线程基础示例 |
+| `lec4-02_data_race.py` | 数据竞态演示 |
+| `lec4-03_with_lock.py` | 锁机制演示 |
+| `lec4-04_multiprocessing.py` | 进程内存隔离演示 |
+| `lec4-05_coroutine.py` | 协程基础 |
+| `lec4-06_coroutine_race.py` | 协程竞态与同步 |
+| `lec4-07_matmul_bench.py` | 矩阵乘法性能测试 |

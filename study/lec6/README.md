@@ -731,8 +731,8 @@ int main() { ... }
 |------|------|
 | `code/l6-bench_mat.cu` | 矩阵乘法基准测试（CPU vs GPU Naive vs GPU Tiled） |
 | `code/l6-ele_mul.cu` | 向量逐元素相乘的完整 CUDA 示例 |
-| `study/lec6/cuda_kernel.cu` | 向量加法的 CUDA 实现 |
-| `study/lec6/cuda_kernel.cpp` | 向量逐元素乘法的 CUDA C++ 代码 |
+| `study/lec6/lec6-cuda_kernel.cu` | 向量加法的 CUDA 实现 |
+| `study/lec6/lec6-cuda_kernel.cpp` | 向量逐元素乘法的 CUDA C++ 代码 |
 | `notes/L6-GPU编程.pdf` | 课程讲义原文 |
 
 ---

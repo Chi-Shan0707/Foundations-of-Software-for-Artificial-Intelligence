@@ -708,3 +708,15 @@ GPU 执行是**异步**的。Host 端调用 `kernel[grid](...)` 后立即返回�
 | **Autotune** | 首次调用时遍历 configs 搜索最优配置，通过 `key` 缓存；需平衡 Tile 大小、Occupancy、Shared Mem 约束 |
 | **Software Pipelining** | 通过 `num_stages` 使内存加载与计算重叠，隐藏内存延迟；级数越高延迟隐藏越好但 Shared Mem 开销越大 |
 | **GPU 异步执行** | Host 调用 Kernel 后立即返回，必须用 `cuda.synchronize()` 才能准确计时 |
+
+
+---
+
+## 附录：代码文件索引
+
+| 文件 | 说明 |
+|------|------|
+| `code/l7-vecmul.py` | Triton 向量逐元素乘法（最简 kernel） |
+| `code/l7-autotune.py` | Triton 矩阵乘法 + `@triton.autotune` 自动调优 |
+| `code/l7-lenet5.py` | 用 Triton 算子替换 LeNet-5 全连接层 |
+| `notes/L7-算子开发.pdf` | 课程讲义原文 |

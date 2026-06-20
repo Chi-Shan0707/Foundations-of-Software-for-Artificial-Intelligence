@@ -863,3 +863,14 @@ loss.backward()
 | **交叉熵** | 分类任务的 NLL；最小化交叉熵 = 最小化 KL 散度 = 拟合真实分布 |
 | **Log-Sum-Exp** | 减去最大值防止指数溢出，保证数值稳定性 |
 | **PyTorch 实践** | 优先使用 `CrossEntropyLoss` / `BCEWithLogitsLoss`，不要手动算 Softmax |
+
+
+---
+
+## 附录：代码文件索引
+
+| 文件 | 说明 |
+|------|------|
+| `code/l5-lenet5.py` | LeNet-5 CNN 模型定义与训练（PyTorch） |
+| `code/l5-rnn.py` | SimpleRNN 时间序列预测（PyTorch） |
+| `notes/L5-PyTorch.pdf` | 课程讲义原文 |
